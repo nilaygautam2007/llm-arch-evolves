@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Appendix: Pedagogical Implementations · LLM Architecture Evolution</title>
+<meta name="description" content="Original, non-production pedagogical Python implementations of the core mechanisms from Chapters 9-19.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html">Part 4</a></li>
+        <li><a href="part-5-frontiers.html">Part 5</a></li>
+        <li><a href="part-6-synthesis.html">Part 6</a></li>
+        <li><a href="glossary.html">Glossary</a></li>
+        <li><a href="appendices.html">Appendices</a></li>
+        <li><a href="code-appendix.html" aria-current="page">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Reference</div>
+  </div>
+</header>
+
+<details class="toc-mobile">
+  <summary>On this page</summary>
+  <ol>
+    <li><a href="#code-e1">E.1 Scaled dot-product &amp; multi-head attention</a></li>
+    <li><a href="#code-e2">E.2 Causal mask &amp; RoPE</a></li>
+    <li><a href="#code-e3">E.3 RMSNorm &amp; SwiGLU</a></li>
+    <li><a href="#code-e4">E.4 Tiled online-softmax attention</a></li>
+    <li><a href="#code-e5">E.5 Top-k MoE router &amp; load balancing</a></li>
+    <li><a href="#code-e6">E.6 Mamba-style selective scan</a></li>
+    <li><a href="#code-e7">E.7 Sliding-window KV cache</a></li>
+    <li><a href="#code-e8">E.8 Cosine warmup schedule &amp; Chinchilla solver</a></li>
+    <li><a href="#code-e9">E.9 Minimal pre-norm Transformer block</a></li>
+  </ol>
+</details>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="On this page">
+  <p class="toc-heading">On this page</p>
+  <ol>
+    <li><a href="#code-e1">E.1 Scaled dot-product &amp; multi-head attention</a></li>
+    <li><a href="#code-e2">E.2 Causal mask &amp; RoPE</a></li>
+    <li><a href="#code-e3">E.3 RMSNorm &amp; SwiGLU</a></li>
+    <li><a href="#code-e4">E.4 Tiled online-softmax attention</a></li>
+    <li><a href="#code-e5">E.5 Top-k MoE router &amp; load balancing</a></li>
+    <li><a href="#code-e6">E.6 Mamba-style selective scan</a></li>
+    <li><a href="#code-e7">E.7 Sliding-window KV cache</a></li>
+    <li><a href="#code-e8">E.8 Cosine warmup schedule &amp; Chinchilla solver</a></li>
+    <li><a href="#code-e9">E.9 Minimal pre-norm Transformer block</a></li>
+  </ol>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Code Appendix</nav>
+
+  <h1>Code Appendix: Pedagogical Implementations</h1>
+  <p class="part-intro">
+    These are <strong>original, minimal, illustrative</strong> Python/NumPy-style implementations of
+    the core mechanisms discussed in Chapters 9, 13–16, and 19 — written for this site to make each
+    mechanism concrete, not copied from the source PDF and not intended for production use. Every
+    snippet intentionally omits batching edge cases, numerical-stability hardening beyond the minimum
+    needed to illustrate the idea, autograd/framework-specific plumbing, and performance
+    optimization. Each card states the one architectural idea it demonstrates before the code.
+  </p>
+
+  <aside class="callout" data-type="math">
+    <p class="callout-label">Read this before the code</p>
+    <div class="callout-body">
+      <p>
+        None of the code on this page is a production kernel. A real FlashAttention or Mamba
+        implementation uses hand-tuned, hardware-specific kernels far more complex than the versions
+        below; these snippets exist purely to make the underlying algorithmic idea legible in plain
+        Python, matching the source's own framing of its code appendix as illustrative rather than
+        production code.
+      </p>
+    </div>
+  </aside>
+
+  <!-- ================= E.1 ================= -->
+  <section id="code-e1" aria-labelledby="code-e1-title">
+    <h2 id="code-e1-title">E.1 Scaled Dot-Product &amp; Multi-Head Attention</h2>
+    <p class="page-ref">Demonstrates the mechanism from Chapter 9 (The Transformer).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> attention lets every position compute a
+      weighted average over every other position's value vector, with weights determined by a
+      content-based query/key match rather than fixed position — the core operation that replaced
+      recurrence.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e1-a">Copy</button>
+      </div>
+      <pre><code id="code-e1-a" class="language-python">import numpy as np
+
+def softmax(x, axis=-1):
+    """Numerically stable softmax along the given axis."""
+    x_shifted = x - np.max(x, axis=axis, keepdims=True)
+    e = np.exp(x_shifted)
+    return e / np.sum(e, axis=axis, keepdims=True)
+
+def scaled_dot_product_attention(q, k, v, mask=None):
+    """
+    q, k, v: arrays of shape (seq_len, d_head)
+    mask: optional (seq_len, seq_len) array of 0/-inf additive bias
+    Returns: (seq_len, d_head) attended output, and the attention weights.
+    """
+    d_head = q.shape[-1]
+    scores = (q @ k.T) / np.sqrt(d_head)      # (seq_len, seq_len)
+    if mask is not None:
+        scores = scores + mask                 # additive mask, e.g. -inf above the diagonal
+    weights = softmax(scores, axis=-1)         # each row sums to 1
+    output = weights @ v                       # weighted average of value vectors
+    return output, weights
+</code></pre>
+    </figure>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e1-b">Copy</button>
+      </div>
+      <pre><code id="code-e1-b" class="language-python">def multi_head_attention(x, Wq, Wk, Wv, Wo, num_heads, mask=None):
+    """
+    x: (seq_len, d_model)
+    Wq, Wk, Wv: (d_model, d_model) projection matrices
+    Wo: (d_model, d_model) output projection
+    Splits d_model into num_heads independent attention computations,
+    then concatenates and projects back to d_model.
+    """
+    seq_len, d_model = x.shape
+    d_head = d_model // num_heads
+
+    q = (x @ Wq).reshape(seq_len, num_heads, d_head)
+    k = (x @ Wk).reshape(seq_len, num_heads, d_head)
+    v = (x @ Wv).reshape(seq_len, num_heads, d_head)
+
+    head_outputs = []
+    for h in range(num_heads):
+        out_h, _ = scaled_dot_product_attention(q[:, h, :], k[:, h, :], v[:, h, :], mask)
+        head_outputs.append(out_h)
+
+    concatenated = np.concatenate(head_outputs, axis=-1)  # (seq_len, d_model)
+    return concatenated @ Wo
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.2 ================= -->
+  <section id="code-e2" aria-labelledby="code-e2-title">
+    <h2 id="code-e2-title">E.2 Causal Mask &amp; RoPE</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapters 9 and 13.</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> a causal mask enforces that position
+      <em>t</em> can only attend to positions ≤ <em>t</em>, which is what makes a Transformer a valid
+      autoregressive language model; RoPE rotates query/key vectors so their dot product encodes
+      relative, not absolute, position.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e2-a">Copy</button>
+      </div>
+      <pre><code id="code-e2-a" class="language-python">def build_causal_mask(seq_len):
+    """Additive mask: 0 where attention is allowed, -inf where it is forbidden."""
+    mask = np.zeros((seq_len, seq_len))
+    upper_triangle = np.triu_indices(seq_len, k=1)   # strictly above the diagonal
+    mask[upper_triangle] = -np.inf
+    return mask
+</code></pre>
+    </figure>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e2-b">Copy</button>
+      </div>
+      <pre><code id="code-e2-b" class="language-python">def rope_angles(seq_len, d_head, base=10000.0):
+    """Per-position, per-dimension-pair rotation angles for RoPE."""
+    pair_idx = np.arange(0, d_head, 2)
+    inv_freq = 1.0 / (base ** (pair_idx / d_head))     # (d_head/2,)
+    positions = np.arange(seq_len)                      # (seq_len,)
+    angles = np.outer(positions, inv_freq)               # (seq_len, d_head/2)
+    return angles
+
+def apply_rope(x, angles):
+    """
+    x: (seq_len, d_head) query or key vectors, d_head even.
+    Rotates each consecutive (even, odd) pair of dimensions by the
+    position-dependent angle, so dot products between rotated vectors
+    depend only on the *difference* in position, not absolute position.
+    """
+    x1 = x[:, 0::2]           # even dimensions
+    x2 = x[:, 1::2]           # odd dimensions
+    cos, sin = np.cos(angles), np.sin(angles)
+    rotated_even = x1 * cos - x2 * sin
+    rotated_odd = x1 * sin + x2 * cos
+    out = np.empty_like(x)
+    out[:, 0::2] = rotated_even
+    out[:, 1::2] = rotated_odd
+    return out
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.3 ================= -->
+  <section id="code-e3" aria-labelledby="code-e3-title">
+    <h2 id="code-e3-title">E.3 RMSNorm &amp; SwiGLU</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapter 13 (Optimization &amp; Training Stability).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> RMSNorm normalizes only by magnitude
+      (no mean-centering, no bias); SwiGLU multiplies a gate branch elementwise into a value branch
+      before the output projection, adding a multiplicative interaction a plain ReLU MLP lacks.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e3-a">Copy</button>
+      </div>
+      <pre><code id="code-e3-a" class="language-python">def rms_norm(x, gain, eps=1e-6):
+    """
+    x: (seq_len, d_model)
+    gain: (d_model,) learned per-dimension scale
+    Normalizes by root-mean-square magnitude only -- no mean subtraction, no bias.
+    """
+    mean_square = np.mean(x ** 2, axis=-1, keepdims=True)
+    rms = np.sqrt(mean_square + eps)
+    return (x / rms) * gain
+
+def silu(x):
+    """SiLU / Swish activation: x * sigmoid(x)."""
+    return x / (1.0 + np.exp(-x))
+
+def swiglu_feed_forward(x, W_gate, W_value, W_out):
+    """
+    x: (seq_len, d_model)
+    W_gate, W_value: (d_model, d_ff)
+    W_out: (d_ff, d_model)
+    The gate branch is squashed with SiLU, then multiplied elementwise
+    into the value branch before the final projection.
+    """
+    gate = silu(x @ W_gate)
+    value = x @ W_value
+    return (gate * value) @ W_out
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.4 ================= -->
+  <section id="code-e4" aria-labelledby="code-e4-title">
+    <h2 id="code-e4-title">E.4 Tiled Online-Softmax Attention</h2>
+    <p class="page-ref">Demonstrates the FlashAttention idea from Chapter 15 (Long-Context Architectures).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> by maintaining a running maximum and
+      running denominator, softmax over a whole row can be computed exactly from small tiles
+      processed one at a time, without ever holding the full row of scores in memory at once — this
+      is the algorithmic core of FlashAttention, shown here as an illustrative loop rather than a real
+      SRAM/HBM-aware kernel.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e4-a">Copy</button>
+      </div>
+      <pre><code id="code-e4-a" class="language-python">def tiled_online_softmax_attention(q, k, v, tile_size):
+    """
+    q: (seq_len, d_head) for ONE query position group being processed
+    k, v: (seq_len, d_head) full key/value sequence
+    Processes k, v in tiles, updating a running max and running
+    (unnormalized) output/denominator so the final result exactly
+    matches a standard full-row softmax -- without ever materializing
+    the full row of scores at once.
+    """
+    seq_len, d_head = k.shape
+    running_max = np.full((q.shape[0], 1), -np.inf)
+    running_denom = np.zeros((q.shape[0], 1))
+    running_output = np.zeros((q.shape[0], d_head))
+
+    for start in range(0, seq_len, tile_size):
+        end = min(start + tile_size, seq_len)
+        k_tile, v_tile = k[start:end], v[start:end]
+
+        tile_scores = (q @ k_tile.T) / np.sqrt(d_head)          # (q_rows, tile_size)
+        tile_max = np.max(tile_scores, axis=-1, keepdims=True)
+        new_max = np.maximum(running_max, tile_max)
+
+        # Rescale everything accumulated so far to the new running max.
+        rescale_old = np.exp(running_max - new_max)
+        tile_weights = np.exp(tile_scores - new_max)             # (q_rows, tile_size)
+
+        running_denom = running_denom * rescale_old + tile_weights.sum(axis=-1, keepdims=True)
+        running_output = running_output * rescale_old + tile_weights @ v_tile
+        running_max = new_max
+
+    return running_output / running_denom
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.5 ================= -->
+  <section id="code-e5" aria-labelledby="code-e5-title">
+    <h2 id="code-e5-title">E.5 Top-<em>k</em> MoE Router &amp; Load Balancing</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapter 14 (Mixture-of-Experts).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> a router scores every token against
+      every expert, keeps only the top-<em>k</em> per token, and combines the selected experts'
+      outputs weighted by (renormalized) router probability; a load-balancing loss discourages the
+      router from collapsing onto a small subset of experts.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e5-a">Copy</button>
+      </div>
+      <pre><code id="code-e5-a" class="language-python">def top_k_route(router_logits, k):
+    """
+    router_logits: (num_tokens, num_experts)
+    Returns: (num_tokens, num_experts) sparse weight matrix -- zero
+    everywhere except the top-k experts per token, renormalized to sum to 1.
+    """
+    probs = softmax(router_logits, axis=-1)
+    num_tokens, num_experts = probs.shape
+    weights = np.zeros_like(probs)
+
+    top_k_idx = np.argsort(-probs, axis=-1)[:, :k]     # indices of the k largest per row
+    for t in range(num_tokens):
+        chosen = top_k_idx[t]
+        chosen_probs = probs[t, chosen]
+        weights[t, chosen] = chosen_probs / chosen_probs.sum()   # renormalize over the k chosen
+    return weights
+
+def moe_layer(x, router_W, expert_fns, k):
+    """
+    x: (num_tokens, d_model)
+    router_W: (d_model, num_experts)
+    expert_fns: list of callables, each mapping (d_model,) -> (d_model,)
+    Naive, non-batched reference implementation: routes each token to its
+    top-k experts and combines outputs by router weight.
+    """
+    router_logits = x @ router_W
+    weights = top_k_route(router_logits, k)          # (num_tokens, num_experts)
+    output = np.zeros_like(x)
+    for t in range(x.shape[0]):
+        for e, w in enumerate(weights[t]):
+            if w > 0:
+                output[t] += w * expert_fns[e](x[t])
+    return output, weights
+
+def load_balancing_loss(weights):
+    """
+    weights: (num_tokens, num_experts) router weights (post top-k, as above)
+    Penalizes uneven routing by comparing each expert's average routed
+    weight against a uniform target -- a simplified illustrative version
+    of the Switch-Transformer-style auxiliary load-balancing loss.
+    """
+    num_experts = weights.shape[1]
+    avg_weight_per_expert = weights.mean(axis=0)       # (num_experts,)
+    uniform_target = 1.0 / num_experts
+    return num_experts * np.sum((avg_weight_per_expert - uniform_target) ** 2)
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.6 ================= -->
+  <section id="code-e6" aria-labelledby="code-e6-title">
+    <h2 id="code-e6-title">E.6 Mamba-Style Selective Scan</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapter 16 (State-Space Models).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> a state-space model updates a fixed-size
+      hidden state each step via a linear recurrence; making the recurrence parameters
+      input-dependent ("selective") lets the model decide, per token, how much to write into or
+      forget from that state.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e6-a">Copy</button>
+      </div>
+      <pre><code id="code-e6-a" class="language-python">def selective_scan(x, delta, A, B, C):
+    """
+    x: (seq_len, d_inner) input sequence
+    delta: (seq_len, d_inner) input-dependent step size (the 'selectivity')
+    A: (d_inner, d_state) base transition parameters
+    B: (seq_len, d_inner, d_state) input-dependent input matrix
+    C: (seq_len, d_inner, d_state) input-dependent output matrix
+    Sequential reference implementation of a simplified selective
+    state-space recurrence. A real Mamba implementation replaces this
+    serial loop with a parallel associative scan for training-time speed;
+    this loop computes the identical result, just one step at a time.
+    """
+    seq_len, d_inner = x.shape
+    d_state = A.shape[-1]
+    state = np.zeros((d_inner, d_state))
+    outputs = np.zeros((seq_len, d_inner))
+
+    for t in range(seq_len):
+        # Discretize the continuous-time parameters using this step's input-dependent delta.
+        A_discrete = np.exp(delta[t][:, None] * A)             # (d_inner, d_state)
+        B_discrete = delta[t][:, None] * B[t]                   # (d_inner, d_state)
+
+        state = A_discrete * state + B_discrete * x[t][:, None] # selective state update
+        outputs[t] = np.sum(C[t] * state, axis=-1)               # read out this step's output
+
+    return outputs
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.7 ================= -->
+  <section id="code-e7" aria-labelledby="code-e7-title">
+    <h2 id="code-e7-title">E.7 Sliding-Window KV Cache</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapter 15 (Long-Context Architectures).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> rather than let the KV cache grow
+      forever, a sliding-window cache keeps only the most recent <em>W</em> tokens' keys/values,
+      bounding serving memory at the cost of losing exact access to anything older than the window.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e7-a">Copy</button>
+      </div>
+      <pre><code id="code-e7-a" class="language-python">class SlidingWindowKVCache:
+    """
+    A fixed-capacity KV cache for one attention layer/head. Once full,
+    appending a new token evicts the oldest cached token -- a simple
+    illustration of the memory-bounding idea behind sliding-window
+    attention, not a production ring-buffer implementation.
+    """
+    def __init__(self, window_size, d_head):
+        self.window_size = window_size
+        self.keys = np.zeros((0, d_head))
+        self.values = np.zeros((0, d_head))
+
+    def append(self, k_t, v_t):
+        self.keys = np.vstack([self.keys, k_t[None, :]])
+        self.values = np.vstack([self.values, v_t[None, :]])
+        if self.keys.shape[0] > self.window_size:
+            self.keys = self.keys[-self.window_size:]
+            self.values = self.values[-self.window_size:]
+
+    def attend(self, q_t):
+        """Attention of one new query against everything currently cached."""
+        out, weights = scaled_dot_product_attention(
+            q_t[None, :], self.keys, self.values
+        )
+        return out[0], weights[0]
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.8 ================= -->
+  <section id="code-e8" aria-labelledby="code-e8-title">
+    <h2 id="code-e8-title">E.8 Cosine Warmup Schedule &amp; Chinchilla Solver</h2>
+    <p class="page-ref">Demonstrates mechanisms from Chapter 13 (Optimization) and Chapter 12 (Scaling Laws).</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> a short linear warmup avoids destabilizing
+      a randomly initialized network with a large learning rate, followed by a cosine decay to a small
+      final value; the Chinchilla solver recovers a compute-optimal parameter/token split from a fixed
+      compute budget and a fitted tokens-per-parameter ratio (see Appendix D.3 for the same arithmetic
+      worked by hand).</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e8-a">Copy</button>
+      </div>
+      <pre><code id="code-e8-a" class="language-python">def cosine_warmup_lr(step, total_steps, warmup_steps, peak_lr, final_lr=0.0):
+    """
+    Linear warmup from 0 to peak_lr over warmup_steps, then cosine decay
+    from peak_lr to final_lr over the remaining steps.
+    """
+    if step &lt; warmup_steps:
+        return peak_lr * (step / max(warmup_steps, 1))
+
+    progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
+    progress = min(progress, 1.0)
+    cosine_factor = 0.5 * (1.0 + np.cos(np.pi * progress))
+    return final_lr + (peak_lr - final_lr) * cosine_factor
+</code></pre>
+    </figure>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e8-b">Copy</button>
+      </div>
+      <pre><code id="code-e8-b" class="language-python">def chinchilla_optimal_split(compute_budget_flops, tokens_per_param=20.0, flops_per_param_per_token=6.0):
+    """
+    Given a fixed compute budget and a fitted tokens-per-parameter ratio,
+    solve for compute-optimal (parameters, tokens) using C = flops_per_param_per_token * N * D
+    and D = tokens_per_param * N. Illustrative -- 'tokens_per_param' is a
+    fitted constant specific to one study's objective/data distribution,
+    not a universal law (see Appendix D.3).
+    """
+    # C = k * N * (r * N) = k * r * N^2  =>  N = sqrt(C / (k * r))
+    k, r = flops_per_param_per_token, tokens_per_param
+    num_params = np.sqrt(compute_budget_flops / (k * r))
+    num_tokens = r * num_params
+    return num_params, num_tokens
+</code></pre>
+    </figure>
+  </section>
+
+  <!-- ================= E.9 ================= -->
+  <section id="code-e9" aria-labelledby="code-e9-title">
+    <h2 id="code-e9-title">E.9 Minimal Pre-Norm Transformer Block</h2>
+    <p class="page-ref">Demonstrates the assembled block from Chapters 9 and 13.</p>
+    <p class="code-idea"><strong>Architectural idea:</strong> a full "modern" Transformer block is
+      just the pieces above (attention, RMSNorm, SwiGLU) composed around two residual connections,
+      each with pre-norm placement — nothing in this assembly step introduces new mathematics beyond
+      what E.1–E.3 already defined.</p>
+
+    <figure class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">python</span>
+        <button class="copy-btn js-only" type="button" data-copy-target="code-e9-a">Copy</button>
+      </div>
+      <pre><code id="code-e9-a" class="language-python">def pre_norm_transformer_block(x, params, num_heads, mask=None):
+    """
+    x: (seq_len, d_model)
+    params: dict with keys 'attn_norm_gain', 'Wq','Wk','Wv','Wo',
+            'ffn_norm_gain', 'W_gate','W_value','W_out'
+    A minimal, illustrative 'TinyLM'-style block: pre-norm attention
+    sub-layer, residual add, pre-norm SwiGLU sub-layer, residual add.
+    """
+    # --- Attention sub-layer, pre-norm + residual ---
+    normed = rms_norm(x, params['attn_norm_gain'])
+    attn_out = multi_head_attention(
+        normed, params['Wq'], params['Wk'], params['Wv'], params['Wo'],
+        num_heads, mask
+    )
+    x = x + attn_out
+
+    # --- Feed-forward sub-layer, pre-norm + residual ---
+    normed = rms_norm(x, params['ffn_norm_gain'])
+    ffn_out = swiglu_feed_forward(
+        normed, params['W_gate'], params['W_value'], params['W_out']
+    )
+    x = x + ffn_out
+
+    return x
+
+def tiny_lm_forward(token_ids, embedding_table, blocks_params, num_heads, unembed_W):
+    """
+    token_ids: (seq_len,) integer token indices
+    embedding_table: (vocab_size, d_model)
+    blocks_params: list of per-block parameter dicts (see above)
+    unembed_W: (d_model, vocab_size)
+    Assembles embeddings -> N stacked pre-norm blocks -> unembedding,
+    with a causal mask so the model is a valid autoregressive LM.
+    """
+    seq_len = len(token_ids)
+    x = embedding_table[token_ids]                 # (seq_len, d_model)
+    mask = build_causal_mask(seq_len)
+
+    for block_params in blocks_params:
+        x = pre_norm_transformer_block(x, block_params, num_heads, mask)
+
+    logits = x @ unembed_W                          # (seq_len, vocab_size)
+    return logits
+</code></pre>
+    </figure>
+
+    <aside class="callout" data-type="insight">
+      <p class="callout-label">Key insight</p>
+      <div class="callout-body">
+        <p>
+          Nothing in <code>tiny_lm_forward</code> is specific to any one chapter — it is literally
+          Chapter 9's Transformer block (attention + feed-forward + two residual connections) with
+          Chapter 13's specific ingredient choices (RMSNorm instead of LayerNorm, SwiGLU instead of
+          ReLU) substituted in. Seeing the assembly this way is the clearest illustration of the
+          book's own claim that "modern" Transformers are a base architecture plus a set of targeted,
+          swappable efficiency choices.
+        </p>
+      </div>
+    </aside>
+  </section>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="appendices.html">← Appendices A, B, D</a>
+    <a href="glossary.html">Glossary →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>All code on this page is original, pedagogical, and non-production, written to illustrate
+    mechanisms from <cite>LLM Architecture Evolution.pdf</cite>, Appendix E (pp. 71–78), without
+    reproducing that appendix's listings.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Reference · Code Appendix E · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

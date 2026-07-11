@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 620" role="img" aria-labelledby="dg-seq2seq-attention-title dg-seq2seq-attention-desc">
+  <title id="dg-seq2seq-attention-title">Sequence-to-sequence encoder-decoder with attention</title>
+  <desc id="dg-seq2seq-attention-desc">An encoder RNN reads the source sequence and produces one hidden state per input position. A plain encoder-decoder without attention compresses all of that into a single fixed-length vector passed to the decoder, which becomes an information bottleneck for long inputs. Attention removes that bottleneck: at each decoding step the decoder computes an alignment score between its current state and every encoder hidden state, turns those scores into weights with a softmax, and takes a weighted sum of encoder states as a context vector, so it can look directly at any relevant source position at every output step and gradients travel a short, direct path back to that position instead of through the entire recurrent chain.</desc>
+  <defs>
+    <marker id="dg-seq2seq-attention-arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1f5fa8"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-teal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#0f7d82"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-purple" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#7b3fb0"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-gray" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#565d6b"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-danger" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#b3261e"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-warn" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#9a6400"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-success" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1b7a43"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-ink" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1a1d23"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-open" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1,1 L10,6 L1,11" fill="none" stroke="#565d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="dg-seq2seq-attention-arrow-diamond" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M5,0 L10,5 L5,10 L0,5 Z" fill="#7b3fb0"/></marker>
+    <pattern id="dg-seq2seq-attention-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#d9dce1" stroke-width="2"/></pattern>
+    <pattern id="dg-seq2seq-attention-hatch-danger" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fbe9e7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#b3261e" stroke-width="1.4"/></pattern>
+  </defs>
+  <rect x="0" y="0" width="1080" height="620" fill="#ffffff"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+  <text x="540" y="30" font-size="19" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">Sequence-to-Sequence with Attention</text>
+  <text x="540" y="51" font-size="12" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">Ch. 7–8 — attention replaces the fixed-vector bottleneck with a differentiable lookup over all encoder states</text>
+  <rect x="60" y="130" width="110" height="60" rx="8" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.8"/><text x="115" y="161.25" font-size="12.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">h_1^{enc}</text>
+  <rect x="60" y="216" width="110" height="34" rx="8" fill="#f2f3f5" stroke="#6b7280" stroke-width="1.8"/><text x="115" y="233.92" font-size="11" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">x_1</text>
+  <path d="M115,216 L115,190" fill="none" stroke="#565d6b" stroke-width="1.4"  marker-end="url(#dg-seq2seq-attention-arrow-gray)" stroke-linecap="round"/>
+  <rect x="204" y="130" width="110" height="60" rx="8" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.8"/><text x="259" y="161.25" font-size="12.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">h_2^{enc}</text>
+  <rect x="204" y="216" width="110" height="34" rx="8" fill="#f2f3f5" stroke="#6b7280" stroke-width="1.8"/><text x="259" y="233.92" font-size="11" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">x_2</text>
+  <path d="M259,216 L259,190" fill="none" stroke="#565d6b" stroke-width="1.4"  marker-end="url(#dg-seq2seq-attention-arrow-gray)" stroke-linecap="round"/>
+  <path d="M170,160 L204,160" fill="none" stroke="#1f5fa8" stroke-width="1.8"  marker-end="url(#dg-seq2seq-attention-arrow-blue)" stroke-linecap="round"/>
+  <rect x="348" y="130" width="110" height="60" rx="8" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.8"/><text x="403" y="161.25" font-size="12.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">h_3^{enc}</text>
+  <rect x="348" y="216" width="110" height="34" rx="8" fill="#f2f3f5" stroke="#6b7280" stroke-width="1.8"/><text x="403" y="233.92" font-size="11" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">x_3</text>
+  <path d="M403,216 L403,190" fill="none" stroke="#565d6b" stroke-width="1.4"  marker-end="url(#dg-seq2seq-attention-arrow-gray)" stroke-linecap="round"/>
+  <path d="M314,160 L348,160" fill="none" stroke="#1f5fa8" stroke-width="1.8"  marker-end="url(#dg-seq2seq-attention-arrow-blue)" stroke-linecap="round"/>
+  <rect x="492" y="130" width="110" height="60" rx="8" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.8"/><text x="547" y="161.25" font-size="12.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">h_4^{enc}</text>
+  <rect x="492" y="216" width="110" height="34" rx="8" fill="#f2f3f5" stroke="#6b7280" stroke-width="1.8"/><text x="547" y="233.92" font-size="11" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">x_4</text>
+  <path d="M547,216 L547,190" fill="none" stroke="#565d6b" stroke-width="1.4"  marker-end="url(#dg-seq2seq-attention-arrow-gray)" stroke-linecap="round"/>
+  <path d="M458,160 L492,160" fill="none" stroke="#1f5fa8" stroke-width="1.8"  marker-end="url(#dg-seq2seq-attention-arrow-blue)" stroke-linecap="round"/>
+  <text x="60" y="116" font-size="12.5" text-anchor="start" font-weight="700" font-style="normal" fill="#1f5fa8">Encoder (reads source sequence)</text>
+  <rect x="430" y="260" width="220" height="60" rx="8" fill="#fbe9e7" stroke="#b3261e" stroke-width="1.6" stroke-dasharray="6,4"/>
+  <text x="540" y="284" font-size="11" text-anchor="middle" font-weight="700" font-style="normal" fill="#b3261e">without attention: one fixed</text>
+  <text x="540" y="300" font-size="10.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#b3261e">vector must summarize everything</text>
+  <path d="M547,190 L540,260" fill="none" stroke="#565d6b" stroke-width="1.6" stroke-dasharray="7,5" marker-end="url(#dg-seq2seq-attention-arrow-open)" stroke-linecap="round"/>
+  <rect x="380" y="360" width="320" height="90" rx="10" fill="#f2e9f8" stroke="#7b3fb0" stroke-width="2"/>
+  <text x="540" y="382" font-size="13.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">Attention</text>
+  <text x="540" y="400" font-size="11" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">score(s_t, h_i^{enc}) → softmax → α_i</text>
+  <text x="540" y="416" font-size="11" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">context c_t = Σ_i α_i · h_i^{enc}</text>
+  <text x="540" y="434" font-size="9.8" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">(all α_i are differentiable weights, not a hard choice)</text>
+  <path d="M115,190 C115,320 420,330 420,360" fill="none" stroke="#7b3fb0" stroke-width="1.6" stroke-dasharray="1.6,3.4" marker-end="url(#dg-seq2seq-attention-arrow-diamond)" stroke-linecap="round"/>
+  <text x="115" y="256" font-size="10.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">α_1</text>
+  <path d="M259,190 C259,320 490,330 490,360" fill="none" stroke="#7b3fb0" stroke-width="1.6" stroke-dasharray="1.6,3.4" marker-end="url(#dg-seq2seq-attention-arrow-diamond)" stroke-linecap="round"/>
+  <text x="259" y="256" font-size="10.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">α_2</text>
+  <path d="M403,190 C403,320 560,330 560,360" fill="none" stroke="#7b3fb0" stroke-width="1.6" stroke-dasharray="1.6,3.4" marker-end="url(#dg-seq2seq-attention-arrow-diamond)" stroke-linecap="round"/>
+  <text x="403" y="256" font-size="10.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">α_3</text>
+  <path d="M547,190 C547,320 630,330 630,360" fill="none" stroke="#7b3fb0" stroke-width="1.6" stroke-dasharray="1.6,3.4" marker-end="url(#dg-seq2seq-attention-arrow-diamond)" stroke-linecap="round"/>
+  <text x="547" y="256" font-size="10.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">α_4</text>
+  <rect x="760" y="300" width="140" height="60" rx="8" fill="#e0f2f2" stroke="#0f7d82" stroke-width="1.8"/><text x="830" y="323.36" font-size="13" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">s_t</text><text x="830" y="339.36" font-size="10" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">decoder state</text>
+  <path d="M760,330 L700,405" fill="none" stroke="#0f7d82" stroke-width="1.8"  marker-end="url(#dg-seq2seq-attention-arrow-teal)" stroke-linecap="round"/><rect x="709.5" y="309" width="41" height="14" fill="#ffffff" opacity="0.9"/><text x="730" y="320" font-size="11.5" text-anchor="middle" font-weight="600" font-style="normal" fill="#565d6b">query</text>
+  <rect x="700" y="500" width="220" height="70" rx="8" fill="#e0f2f2" stroke="#0f7d82" stroke-width="1.8"/><text x="810" y="528.36" font-size="13" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">Decoder step</text><text x="810" y="544.36" font-size="10.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">y_t = g(s_t, c_t, y_{t-1})</text>
+  <path d="M540,450 L810,500" fill="none" stroke="#7b3fb0" stroke-width="2"  marker-end="url(#dg-seq2seq-attention-arrow-purple)" stroke-linecap="round"/><rect x="631.1" y="464" width="27.8" height="14" fill="#ffffff" opacity="0.9"/><text x="645" y="475" font-size="11.5" text-anchor="middle" font-weight="600" font-style="normal" fill="#565d6b">c_t</text>
+  <path d="M830,360 L810,500" fill="none" stroke="#0f7d82" stroke-width="1.6"  marker-end="url(#dg-seq2seq-attention-arrow-teal)" stroke-linecap="round"/>
+  <rect x="30" y="480" width="320" height="108" rx="8" fill="#ffffff" stroke="#9aa2b1" stroke-width="1.3"/>
+<text x="44" y="500" font-size="12.5" text-anchor="start" font-weight="700" font-style="normal" fill="#1a1d23">Legend</text>
+<path d="M44,516 L78,516" fill="none" stroke="#1f5fa8" stroke-width="2.0"  marker-end="url(#dg-seq2seq-attention-arrow-blue)" stroke-linecap="round"/>
+<text x="86" y="520" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">recurrent encoder chain</text>
+<path d="M44,536 L78,536" fill="none" stroke="#7b3fb0" stroke-width="2.0" stroke-dasharray="1.6,3.4" marker-end="url(#dg-seq2seq-attention-arrow-diamond)" stroke-linecap="round"/>
+<text x="86" y="540" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">attention weight α_i (soft, differentiable)</text>
+<path d="M44,556 L78,556" fill="none" stroke="#565d6b" stroke-width="2.0" stroke-dasharray="7,5" marker-end="url(#dg-seq2seq-attention-arrow-open)" stroke-linecap="round"/>
+<text x="86" y="560" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">old fixed-vector path (bottleneck, for contrast)</text>
+<path d="M44,576 L78,576" fill="none" stroke="#0f7d82" stroke-width="2.0"  marker-end="url(#dg-seq2seq-attention-arrow-teal)" stroke-linecap="round"/>
+<text x="86" y="580" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">decoder computation</text>
+  </g>
+</svg>

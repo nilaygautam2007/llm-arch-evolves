@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Part 4: Efficiency &amp; Scale (Ch. 13–16) · LLM Architecture Evolution</title>
+<meta name="description" content="Optimization and training stability, mixture-of-experts, long-context architectures, and state-space models.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html" aria-current="page">Part 4</a></li>
+        <li><a href="part-5-frontiers.html">Part 5</a></li>
+        <li><a href="part-6-synthesis.html">Part 6</a></li>
+        <li><a href="glossary.html">Glossary</a></li>
+        <li><a href="appendices.html">Appendices</a></li>
+        <li><a href="code-appendix.html">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Part 4 of 6</div>
+  </div>
+</header>
+
+<details class="toc-mobile">
+  <summary>On this page</summary>
+  <ol>
+    <li><a href="#ch-13">Ch. 13 Optimization &amp; Training Stability</a></li>
+    <li><a href="#ch-14">Ch. 14 Mixture-of-Experts</a></li>
+    <li><a href="#ch-15">Ch. 15 Long-Context Architectures</a></li>
+    <li><a href="#ch-16">Ch. 16 State-Space Models</a></li>
+  </ol>
+</details>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="On this page">
+  <p class="toc-heading">On this page</p>
+  <ol>
+    <li><a href="#ch-13">Ch. 13 Optimization &amp; Training Stability</a>
+      <ol>
+        <li><a href="#ch-13-residual">Residual highway &amp; pre-norm</a></li>
+        <li><a href="#ch-13-norm-mlp">RMSNorm &amp; SwiGLU</a></li>
+        <li><a href="#ch-13-rope">RoPE &amp; positional encoding</a></li>
+        <li><a href="#ch-13-gqa">GQA &amp; serving memory</a></li>
+        <li><a href="#ch-13-optim">Optimizer, schedule &amp; μP</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-14">Ch. 14 Mixture-of-Experts</a>
+      <ol>
+        <li><a href="#ch-14-routing">Routing &amp; top-k experts</a></li>
+        <li><a href="#ch-14-balance">Load balancing</a></li>
+        <li><a href="#ch-14-parallel">Expert parallelism</a></li>
+        <li><a href="#ch-14-case">Case study: DeepSeek-V3</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-15">Ch. 15 Long-Context Architectures</a>
+      <ol>
+        <li><a href="#ch-15-quadratic">Quadratic attention vs. linear cache growth</a></li>
+        <li><a href="#ch-15-flash">FlashAttention &amp; online softmax</a></li>
+        <li><a href="#ch-15-sparse">Sparse &amp; linear attention</a></li>
+        <li><a href="#ch-15-paged">Paged &amp; extended context</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-16">Ch. 16 State-Space Models</a>
+      <ol>
+        <li><a href="#ch-16-s4">From RNN to structured state space</a></li>
+        <li><a href="#ch-16-mamba">Mamba &amp; selective scan</a></li>
+        <li><a href="#ch-16-tradeoffs">SSM vs. Transformer trade-offs</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Part 4: Efficiency &amp; Scale</nav>
+
+  <h1>Part 4. Efficiency &amp; Scale</h1>
+  <p class="part-intro">
+    Chapters 9–12 built and trained the Transformer; Chapters 13–16 ask how it survives contact
+    with real hardware and real budgets. Every idea in this Part is a targeted answer to one
+    question: <em>which constraint is actually binding — compute, memory, or bandwidth — and what
+    do we give up to relax it?</em> Optimization tricks (Ch. 13) make a fixed-size dense model
+    train and serve more cheaply. Mixture-of-experts (Ch. 14) decouples total capacity from
+    per-token compute. Long-context techniques (Ch. 15) separate quadratic training cost from
+    linear serving-cache growth. State-space models (Ch. 16) trade the Transformer's unbounded
+    key/value cache for a fixed-size recurrent state. None of these replace the Transformer
+    outright — they each relax one of its constraints while introducing a new one.
+  </p>
+
+  <!-- ================= CH 13 ================= -->
+  <section id="ch-13" aria-labelledby="ch-13-title">
+    <h2 id="ch-13-title">Chapter 13. Optimization &amp; Training Stability</h2>
+    <span class="era-badge">2017–2023 · Efficiency &amp; scale</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 32–35.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      The 2017 Transformer block was a proof of concept, not a finished recipe. As models grew to
+      dozens of layers and billions of parameters, small inefficiencies compounded: LayerNorm's
+      mean-centering and bias terms cost extra compute on every layer; plain ReLU feed-forward
+      blocks under-performed gated alternatives; absolute position embeddings generalized poorly
+      beyond their training length; and a full multi-head key/value cache became the single
+      largest cost of serving a long conversation. Chapter 13 catalogs the now-conventional
+      "modern block" ingredients — RMSNorm, SwiGLU, RoPE, GQA, AdamW, warmup/cosine schedules, and
+      μP — each a narrow, well-motivated reallocation of one specific budget line, not a change in
+      what the Transformer fundamentally does.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>The residual stream is a gradient "highway": each sub-layer adds a small correction to
+        an otherwise-unchanged running total, so gradients can flow across dozens of layers
+        without vanishing.</li>
+      <li>Pre-norm placement (normalize the sub-layer's <em>input</em>, not its output) keeps the
+        residual path itself unnormalized, which is empirically more stable to train at depth than
+        the original post-norm placement.</li>
+      <li>RMSNorm drops LayerNorm's mean subtraction and bias term, normalizing only by root-mean-square
+        magnitude — cheaper per layer with comparable training behavior.</li>
+      <li>SwiGLU-style gated feed-forward blocks (a gating branch multiplied elementwise into a
+        value branch) reliably outperform plain ReLU MLPs at matched compute, at the cost of a
+        third weight matrix.</li>
+      <li>RoPE rotates query/key vectors so their dot product depends on <em>relative</em> position,
+        giving better length-generalization than learned absolute embeddings.</li>
+      <li>Grouped-Query Attention (GQA) shares key/value projections across groups of query heads,
+        shrinking the KV cache that dominates serving memory without collapsing all the way to a
+        single shared head.</li>
+      <li>AdamW's decoupled weight decay, warmup-then-cosine-decay learning-rate schedules, careful
+        initialization, and μP (maximal update parametrization) keep large training runs stable and
+        let hyperparameters tuned on a small proxy model transfer to a much larger one.</li>
+    </ul>
+
+    <h3 id="ch-13-residual">Residual highway &amp; pre-norm</h3>
+    <p>
+      Every Transformer layer computes <code>x ← x + f(x)</code>, where <code>f</code> is
+      attention or the feed-forward block. Because the identity term dominates, the gradient of
+      the output with respect to an early layer's input is approximately the product of many
+      near-identity Jacobians rather than many arbitrary ones — this is why residual connections
+      alone (independent of any normalization scheme) are the single biggest reason deep
+      Transformers are trainable at all. <strong>Pre-norm</strong> (<code>x + f(Norm(x))</code>)
+      normalizes only the branch feeding into <code>f</code>, leaving the accumulating residual
+      stream itself unnormalized and gradient-friendly; <strong>post-norm</strong>
+      (<code>Norm(x + f(x))</code>, the original 2017 placement) normalizes the running total
+      itself at every layer, which empirically needs more careful warmup to train stably at large
+      depth.
+    </p>
+
+    <h3 id="ch-13-norm-mlp">RMSNorm &amp; SwiGLU</h3>
+    <p>
+      LayerNorm subtracts the mean, divides by the standard deviation, and applies a learned scale
+      and bias. RMSNorm keeps only the scale-normalization step — dividing by the root-mean-square
+      of the activations — and drops mean-centering and the bias term entirely:
+    </p>
+    <p class="equation">RMSNorm(x) = x / RMS(x) · g,  where RMS(x) = √(mean(x²) + ε)</p>
+    <p>
+      This removes one reduction and one learned parameter per normalization call, at negligible
+      cost to model quality in practice. SwiGLU replaces a plain two-matrix ReLU MLP with a
+      three-matrix gated variant:
+    </p>
+    <p class="equation">SwiGLU(x) = (SiLU(xW₁) ⊙ xW₂) W₃</p>
+    <p>
+      The gate <code>SiLU(xW₁)</code> multiplies elementwise (<code>⊙</code>) into the value branch
+      <code>xW₂</code> before the output projection <code>W₃</code>; the extra multiplicative
+      interaction is the source of the improvement, at the cost of roughly 50% more feed-forward
+      parameters for the same hidden width (models typically shrink the hidden width to compensate).
+    </p>
+
+    <h3 id="ch-13-rope">RoPE &amp; positional encoding</h3>
+    <p>
+      Self-attention has no inherent sense of order — it must be told where each token sits.
+      Rotary Position Embedding (RoPE) encodes absolute position by rotating each query and key
+      vector's 2D sub-spaces by an angle proportional to position; because a rotation's effect on a
+      dot product depends only on the <em>difference</em> in angle between the two rotated vectors,
+      the resulting attention score depends on relative offset even though no relative term was
+      computed explicitly. This gives better behavior on sequences longer than any seen in training
+      than a learned absolute-position table, though it is not a free lunch — extending far beyond
+      the trained length still requires the interpolation/scaling tricks in Chapter 15.
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 13.1. Positional encoding comparison.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Scheme</th><th scope="col">Mechanism</th><th scope="col">Extrapolation beyond training length</th><th scope="col">Extra compute</th><th scope="col">Notable adopters</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Learned absolute</th><td>Per-position embedding table, added to token embeddings</td><td>Poor — untrained positions are undefined</td><td>None at inference</td><td>Original GPT, BERT</td></tr>
+            <tr><th scope="row">Sinusoidal absolute</th><td>Fixed sine/cosine functions of position, added to embeddings</td><td>Weak but non-degenerate</td><td>None</td><td>Vaswani et al. 2017 Transformer</td></tr>
+            <tr><th scope="row">RoPE</th><td>Rotates Q/K sub-spaces by an angle proportional to position</td><td>Moderate natively; strong with post-hoc scaling (Ch. 15)</td><td>Small, applied per attention call</td><td>LLaMA family, most current open decoder-only models</td></tr>
+            <tr><th scope="row">ALiBi</th><td>Adds a fixed distance-proportional bias directly to attention scores</td><td>Strong, but must be trained in from the start</td><td>Negligible</td><td>BLOOM and other length-extrapolation-focused models</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <h3 id="ch-13-gqa">GQA &amp; serving memory</h3>
+    <p>
+      At decode time, a Transformer must keep every past token's key and value vectors in memory
+      per layer, per head — the KV cache. Multi-Head Attention (MHA) gives every query head its own
+      key/value heads, maximizing expressivity but maximizing cache size too. Multi-Query Attention
+      (MQA) collapses all query heads onto a <em>single</em> shared key/value head, minimizing cache
+      size but also constraining what the model can represent. Grouped-Query Attention (GQA) sits
+      between the two: query heads are split into groups, and each group shares one key/value head —
+      a tunable trade-off between cache size and quality that most current serving-oriented models
+      choose over either extreme.
+    </p>
+
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book</p>
+      <div class="callout-body">
+        <p>
+          DeepSeek-V3's Multi-Head Latent Attention (MLA) compresses the cached key/value
+          information for all heads into a single low-rank latent vector per token, reconstructed
+          on the fly — a further point along the same cache-compression spectrum as MQA/GQA, at the
+          cost of extra reconstruction compute at each attention call. Treat exact reported memory
+          savings as specific to that report's configuration and date.<sup><a href="#ch-13-src-1">[1]</a></sup>
+        </p>
+      </div>
+    </aside>
+
+    <h3 id="ch-13-optim">Optimizer, schedule &amp; μP</h3>
+    <p>
+      AdamW decouples weight decay from the gradient-based moment estimates that ordinary Adam
+      conflates, which more reliably regularizes large models. Training almost universally uses a
+      short linear warmup (to avoid destabilizing the randomly initialized network with a large
+      early learning rate) followed by a cosine decay to a small final value. μP (maximal update
+      parametrization) rescales initialization, learning rate, and layer outputs by width in a
+      specific, derived way so that a hyperparameter sweep done cheaply on a narrow proxy model
+      transfers directly to a much wider production model — turning hyperparameter search from a
+      cost that scales with the final model into one that does not.
+    </p>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why pre-norm changes the gradient at initialization</summary>
+      <p>
+        With post-norm, the gradient flowing to an early layer must pass back through every
+        subsequent normalization operation, each of which rescales its input — at random
+        initialization, deep stacks of these rescalings can shrink or amplify the gradient
+        multiplicatively by depth. With pre-norm, the residual stream itself is never renormalized
+        on the backward path from the output to any earlier layer's residual addition; only the
+        small branch entering <code>f</code> passes through a norm. This is a structural argument
+        for why pre-norm needs less warmup and tolerates greater depth, independent of which
+        specific normalization function (LayerNorm or RMSNorm) is used inside <code>f</code>.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-13">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why does pre-norm placement typically make very deep Transformers easier to train than
+          post-norm?
+          <details><summary>Reveal answer</summary>Pre-norm leaves the accumulating residual stream
+          itself unnormalized; the backward pass from a late layer to an early one does not have to
+          pass through a chain of renormalizations, so gradients are less prone to the
+          multiplicative shrink/blow-up that post-norm's repeated renormalization of the running
+          total can cause at depth.</details>
+        </li>
+        <li>What specific computation does RMSNorm remove relative to LayerNorm, and why is that
+          removal considered safe?
+          <details><summary>Reveal answer</summary>RMSNorm removes mean-centering (subtracting the
+          activation mean) and the learned bias term, keeping only the root-mean-square scale
+          normalization. It is considered safe because it empirically matches LayerNorm's training
+          behavior in Transformer stacks while doing less per-call arithmetic.</details>
+        </li>
+        <li>Where does GQA sit relative to MHA and MQA, and what does it trade for that position?
+          <details><summary>Reveal answer</summary>GQA groups query heads and shares one key/value
+          head per group — more cache-efficient than MHA (which gives every head its own KV) and
+          more expressive than MQA (which shares a single KV head across all query heads). It
+          trades some of MHA's per-head representational flexibility for a smaller KV cache, without
+          taking MQA's full quality risk.</details>
+        </li>
+        <li>What problem is μP specifically designed to solve?
+          <details><summary>Reveal answer</summary>μP is designed to make hyperparameters (notably
+          learning rate) found cheaply on a small, narrow proxy model transfer reliably to a much
+          wider production-scale model, avoiding a full hyperparameter search at the expensive final
+          scale.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-13"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li id="ch-13-src-1">DeepSeek-AI, <cite>DeepSeek-V3 Technical Report</cite> (2024). <a href="https://arxiv.org/abs/2412.19437">arxiv.org/abs/2412.19437</a> — Multi-Head Latent Attention, dated to this specific report.</li>
+      <li>Su et al., <cite>RoFormer: Enhanced Transformer with Rotary Position Embedding</cite> (2021). <a href="https://arxiv.org/abs/2104.09864">arxiv.org/abs/2104.09864</a></li>
+      <li>Press et al., <cite>Train Short, Test Long (ALiBi)</cite> (2021). <a href="https://arxiv.org/abs/2108.12409">arxiv.org/abs/2108.12409</a></li>
+      <li>Zhang &amp; Sennrich, <cite>Root Mean Square Layer Normalization</cite> (2019). <a href="https://arxiv.org/abs/1910.07467">arxiv.org/abs/1910.07467</a></li>
+      <li>Shazeer, <cite>GLU Variants Improve Transformer</cite> (2020). <a href="https://arxiv.org/abs/2002.05202">arxiv.org/abs/2002.05202</a></li>
+      <li>Shazeer, <cite>Fast Transformer Decoding: One Write-Head is All You Need (MQA)</cite> (2019). <a href="https://arxiv.org/abs/1911.02150">arxiv.org/abs/1911.02150</a></li>
+      <li>Ainslie et al., <cite>GQA: Training Generalized Multi-Query Transformer Models</cite> (2023). <a href="https://arxiv.org/abs/2305.13245">arxiv.org/abs/2305.13245</a></li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 14 ================= -->
+  <section id="ch-14" aria-labelledby="ch-14-title">
+    <h2 id="ch-14-title">Chapter 14. Mixture-of-Experts</h2>
+    <span class="era-badge">2021–2024 · Sparse capacity</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 35–38.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      A dense Transformer ties total parameter count directly to per-token compute: every token
+      activates every parameter, every layer. Mixture-of-Experts (MoE) breaks that link by making
+      the feed-forward computation <em>sparse</em> — a lightweight router sends each token to only
+      a handful of specialist "expert" sub-networks out of many — so total model capacity can grow
+      far faster than the compute spent on any single token. The cost is a genuinely new systems
+      problem: keeping routing balanced across experts and efficient across hardware, which has no
+      dense-Transformer analogue.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>A router (a small linear layer plus softmax) scores each token against every expert and
+        activates only the top-<em>k</em> (commonly 1 or 2).</li>
+      <li>Total ("sparse") parameter count and active ("dense-equivalent") parameter count are
+        different numbers; FLOPs per token track only the active count.</li>
+      <li>Naive routing collapses onto a few popular experts; load-balancing losses (or newer
+        auxiliary-loss-free schemes) are required to keep all experts utilized and training stable.</li>
+      <li>Expert parallelism spreads experts across accelerators; tokens must be shuffled to their
+        assigned expert's device via an all-to-all communication step — the dominant systems cost of
+        MoE at scale.</li>
+      <li>Fine-grained routed experts plus one or more always-on "shared" experts (as in DeepSeekMoE)
+        combine specialization with a reliable baseline computation every token receives.</li>
+      <li>Case study: DeepSeek-V3 reports 671B total parameters with only 37B active per token — a
+        concrete, dated illustration of the capacity/compute split, not a universal ratio.</li>
+    </ul>
+
+    <h3 id="ch-14-routing">Routing &amp; top-k experts</h3>
+    <p>
+      For each token's hidden state <code>x</code>, the router computes logits
+      <code>x·Wᵣ</code> over <em>E</em> experts, takes a softmax, and keeps only the top-<em>k</em>
+      values (zeroing the rest). Each selected expert is a small feed-forward network; their
+      outputs are combined weighted by the router's (renormalized) top-<em>k</em> probabilities.
+      <strong>Token-choice routing</strong> (each token independently picks its top experts, as
+      above) is the common default; <strong>expert-choice routing</strong> inverts the assignment —
+      each expert picks the tokens it wants up to a fixed capacity — which bounds per-expert load by
+      construction at the cost of potentially dropping some tokens or padding others.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-14-1-title">
+      <img src="assets/diagrams/moe-routing.svg" alt="Diagram of tokens flowing into a router, the router scoring all experts and selecting the top-k for each token, the selected experts each processing their assigned tokens, and a weighted combine step producing the final output. A load-balance warning indicator highlights an overloaded expert." loading="lazy">
+      <figcaption id="dg-14-1-title">Figure 14.1. Token-choice MoE routing: score → top-k select → expert compute → weighted combine, with a load-balance failure mode called out.</figcaption>
+    </figure>
+
+    <h3 id="ch-14-balance">Load balancing</h3>
+    <p>
+      Left unconstrained, gradient descent tends to route more tokens to whichever experts are
+      already slightly better, starving the rest of training signal — a rich-get-richer collapse.
+      The classic fix adds an auxiliary load-balancing loss that penalizes uneven routing (comparing
+      each expert's fraction of routed tokens against its fraction of router probability mass).
+      This works but adds a hyperparameter (the loss weight) that trades routing quality against
+      task loss. Newer <strong>auxiliary-loss-free</strong> schemes instead adjust a per-expert
+      routing bias directly based on recent load, removing the extra loss term from the training
+      objective while still discouraging collapse.
+    </p>
+
+    <div class="innovation-split">
+      <div class="innovation-block" data-kind="architecture">
+        <p class="innovation-label">Architecture innovation</p>
+        <ul>
+          <li>The router and sparse top-<em>k</em> expert-selection mechanism itself.</li>
+          <li>Fine-grained routed-expert + shared-expert layer design (DeepSeekMoE).</li>
+        </ul>
+      </div>
+      <div class="innovation-block" data-kind="training-system">
+        <p class="innovation-label">Training / systems innovation</p>
+        <ul>
+          <li>Load-balancing auxiliary loss, or auxiliary-loss-free bias adjustment.</li>
+          <li>All-to-all expert-parallel communication scheduling across accelerators.</li>
+          <li>Multi-token prediction as an auxiliary training objective/head (adds parameters, but is
+            primarily a training-signal change, not a routing change).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="ch-14-parallel">Expert parallelism</h3>
+    <p>
+      Because experts are large and numerous, they are typically sharded one-or-few-per-device
+      rather than replicated. After routing decides which expert each token needs, tokens must
+      physically move to that expert's device (an all-to-all exchange), be processed, and move back
+      — a communication pattern with no equivalent in a dense Transformer, where every device already
+      has every weight it needs locally. This all-to-all step, not the expert arithmetic itself, is
+      usually the binding cost of training or serving a large MoE model across many accelerators.
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 14.1. Mixture-of-Experts routing comparison.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Design</th><th scope="col">Quality vs. compute trade-off</th><th scope="col">Load-balancing approach</th><th scope="col">Notable model</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Dense (no routing)</th><td>Every parameter active every token — highest compute per parameter, simplest to train</td><td>Not applicable</td><td>Original GPT/LLaMA-style dense models</td></tr>
+            <tr><th scope="row">Top-1 (Switch)</th><td>Lowest active-compute overhead per added parameter; most sensitive to routing collapse</td><td>Auxiliary load-balancing loss</td><td>Switch Transformer (Fedus et al., 2021)</td></tr>
+            <tr><th scope="row">Top-2</th><td>More stable gradient signal per token than top-1, roughly double the active feed-forward compute</td><td>Auxiliary load-balancing loss</td><td>Mixtral 8x7B (Mistral AI, 2024)</td></tr>
+            <tr><th scope="row">Fine-grained routed + shared experts</th><td>Many small specialists plus an always-on shared baseline; more total experts, smaller each</td><td>Auxiliary-loss-free bias adjustment (in DeepSeek-V3)</td><td>DeepSeekMoE / DeepSeek-V3 (Dai et al. 2024; DeepSeek-AI, 2024)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <h3 id="ch-14-case">Case study: DeepSeek-V3</h3>
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book</p>
+      <div class="callout-body">
+        <p>
+          DeepSeek-V3 reports 671B total parameters with 37B active per token, combining
+          fine-grained routed experts, shared experts, auxiliary-loss-free balancing, Multi-Head
+          Latent Attention, multi-token prediction, and FP8 training.<sup><a href="#ch-14-src-1">[1]</a></sup>
+          These figures describe one specific, dated model release, not a general MoE ratio — treat
+          any "X% of parameters active" claim as source- and version-specific until you have checked
+          the original report.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: capacity factor and token dropping</summary>
+      <p>
+        Because hardware batches work in fixed-size blocks, each expert is usually given a
+        <em>capacity</em> — a maximum number of tokens it will process in a batch, set as a
+        multiple ("capacity factor") of the batch's fair share. Tokens routed to an already-full
+        expert are either dropped (their output falls back to a residual pass-through) or spill to
+        a lower-priority alternate expert, depending on implementation. A capacity factor near 1.0
+        maximizes hardware efficiency but risks dropping more tokens under imbalance; a larger factor
+        wastes compute on padding but drops fewer tokens. This is a pure systems/training trade-off
+        with no analogue in a dense feed-forward layer, where every token is always fully processed.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-14">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why can a sparse MoE model have far more total parameters than a dense model trained
+          with the same per-token compute budget?
+          <details><summary>Reveal answer</summary>Because only the top-<em>k</em> selected experts
+          run for any given token; FLOPs per token scale with the small <em>active</em> parameter
+          count, while total capacity scales with the number of experts, most of which are idle for
+          any single token.</details>
+        </li>
+        <li>What failure mode does a load-balancing loss (or auxiliary-loss-free bias adjustment)
+          specifically prevent?
+          <details><summary>Reveal answer</summary>Routing collapse, where gradient descent
+          increasingly sends tokens to a small number of already-favored experts, starving the rest
+          of training signal and wasting the model's added capacity.</details>
+        </li>
+        <li>What is the dominant systems cost of running an MoE layer across multiple accelerators,
+          and why doesn't a dense Transformer layer have the same cost?
+          <details><summary>Reveal answer</summary>The all-to-all communication step that physically
+          moves each token to the device holding its assigned expert(s) and back. A dense
+          Transformer layer has no such step because every device already holds every weight it
+          needs for every token.</details>
+        </li>
+        <li>Are DeepSeek-V3's 671B/37B parameter figures a general property of MoE models?
+          <details><summary>Reveal answer</summary>No — they describe one specific, dated model
+          release with its own expert count, sizing, and routing configuration. The general lesson
+          (total capacity can exceed active compute) is durable; the exact ratio is not.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-14"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li id="ch-14-src-1">DeepSeek-AI, <cite>DeepSeek-V3 Technical Report</cite> (2024). <a href="https://arxiv.org/abs/2412.19437">arxiv.org/abs/2412.19437</a></li>
+      <li>Fedus et al., <cite>Switch Transformers</cite> (2021). <a href="https://arxiv.org/abs/2101.03961">arxiv.org/abs/2101.03961</a></li>
+      <li>Mistral AI, <cite>Mixtral of Experts</cite> (2024). <a href="https://arxiv.org/abs/2401.04088">arxiv.org/abs/2401.04088</a></li>
+      <li>Dai et al., <cite>DeepSeekMoE</cite> (2024). <a href="https://arxiv.org/abs/2401.06066">arxiv.org/abs/2401.06066</a></li>
+      <li>Wang et al., <cite>Auxiliary-Loss-Free Load Balancing</cite> (2024). <a href="https://arxiv.org/abs/2408.15664">arxiv.org/abs/2408.15664</a></li>
+      <li>Gloeckle et al., <cite>Better &amp; Faster Large Language Models via Multi-Token Prediction</cite> (2024). <a href="https://arxiv.org/abs/2404.19737">arxiv.org/abs/2404.19737</a></li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 15 ================= -->
+  <section id="ch-15" aria-labelledby="ch-15-title">
+    <h2 id="ch-15-title">Chapter 15. Long-Context Architectures</h2>
+    <span class="era-badge">2020–2024 · Serving &amp; context scaling</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 38–41.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Self-attention's score matrix grows quadratically with sequence length, and its key/value
+      cache grows linearly with every generated token — two related but distinct costs that are
+      easy to conflate. Chapter 15 separates "how do we compute attention over a long sequence
+      efficiently" (FlashAttention, sparse and linear attention) from "how do we serve a long-context
+      model economically once it's trained" (paging, quantizing, and post-hoc position-extension
+      tricks). Getting this distinction right matters because the fix for one problem does not fix
+      the other.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>Quadratic cost in the training-time attention score matrix and linear-per-step KV-cache
+        growth at decode time are different problems with different fixes.</li>
+      <li>FlashAttention computes <em>exact</em> attention tile-by-tile using a running ("online")
+        softmax, never materializing the full n×n score matrix in slow GPU memory — it trades
+        recomputation for memory traffic, and is not an approximation.</li>
+      <li>Sparse attention (fixed local windows) and linear/kernel-approximate attention reduce
+        asymptotic cost but change what positions the model can directly attend to.</li>
+      <li>PagedAttention manages the KV cache like OS virtual memory, in fixed-size non-contiguous
+        blocks, cutting fragmentation and allowing much higher serving batch sizes.</li>
+      <li>RoPE-extension methods (position interpolation, NTK-aware scaling, YaRN) stretch a model's
+        usable context past its training length without full retraining, but this is a serving-time
+        patch, not proof the model reliably uses the entire extended window.</li>
+      <li>Advertised context-window length is a capability claim, not a recall guarantee — treat
+        long-context marketing figures with the same caution as any other fast-moving benchmark.</li>
+    </ul>
+
+    <h3 id="ch-15-quadratic">Quadratic attention vs. linear cache growth</h3>
+    <p>
+      Training-time self-attention computes an n×n score matrix — doubling sequence length roughly
+      quadruples that matrix's size and the compute to fill it. At decode time, though, a model
+      generates one token at a time and reuses cached keys/values for all previous tokens: each new
+      token adds one row to the cache, a <em>linear</em> cost per step, not quadratic. A model can
+      therefore be expensive to <em>train</em> at long context (quadratic score matrix) while its
+      per-step decode cost grows only linearly — but the cache itself, summed over a long
+      conversation, can still dominate total serving memory. Both statements are true
+      simultaneously; neither alone characterizes "the cost of long context."
+    </p>
+
+    <h3 id="ch-15-flash">FlashAttention &amp; online softmax</h3>
+    <p>
+      A naive attention implementation writes the full score matrix to GPU high-bandwidth memory
+      (HBM), reads it back for softmax, and reads it again for the weighted value sum — three
+      expensive round trips through the slowest part of the memory hierarchy. FlashAttention instead
+      processes the sequence in small tiles that fit in fast on-chip memory (SRAM), maintaining a
+      running maximum and running denominator so the softmax normalization can be updated
+      incrementally as each new tile arrives, without ever holding the full score matrix at once.
+      The output is mathematically identical to standard attention; the saving is entirely in memory
+      traffic, not in approximation.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-15-1-title">
+      <img src="assets/diagrams/kv-cache-paged-attention.svg" alt="Diagram contrasting a naive contiguous key/value cache that grows unboundedly and fragments, with PagedAttention's fixed-size non-contiguous memory blocks that are allocated per request and freed independently, alongside a tiled FlashAttention flow showing small blocks moving between fast SRAM and slow HBM with a running softmax maximum and denominator." loading="lazy">
+      <figcaption id="dg-15-1-title">Figure 15.1. KV-cache growth and PagedAttention block management, alongside FlashAttention's tiled SRAM/HBM data flow.</figcaption>
+    </figure>
+
+    <h3 id="ch-15-sparse">Sparse &amp; linear attention</h3>
+    <p>
+      Rather than computing every pairwise score, sparse-attention designs restrict each position
+      to a fixed pattern of others — for example, Mistral 7B's sliding-window attention lets each
+      token attend only to a fixed-size local window, stacking windows across layers so information
+      can still propagate over longer effective ranges. Linear-attention and kernel-approximation
+      methods reformulate the attention computation to avoid the quadratic score matrix altogether,
+      trading exactness for asymptotic cost. Both families change what the model can directly see in
+      one step, which is a modeling trade-off, not merely an implementation detail.
+    </p>
+
+    <h3 id="ch-15-paged">Paged &amp; extended context</h3>
+    <p>
+      <strong>PagedAttention</strong> applies the operating-systems idea of paged virtual memory to
+      the KV cache: instead of one long contiguous allocation per request (which fragments memory
+      as requests of different lengths start and finish), the cache is split into small fixed-size
+      blocks that can be allocated, shared, and freed independently — dramatically improving how many
+      concurrent requests a server can hold in a fixed memory budget. Separately,
+      <strong>RoPE-extension</strong> methods let a model trained at one context length operate
+      usably at a longer one: <em>position interpolation</em> rescales position indices to fit inside
+      the trained range; <em>NTK-aware scaling</em> and <strong>YaRN</strong> adjust RoPE's rotation
+      frequencies unevenly (preserving high-frequency, short-range precision while compressing
+      low-frequency, long-range behavior) to extrapolate with less quality loss than naive
+      interpolation.
+    </p>
+
+    <aside class="callout" data-type="misconception">
+      <p class="callout-label">Common misconception</p>
+      <div class="callout-body">
+        <p>
+          A model advertising a 1M-token context window is not thereby guaranteed to retrieve or
+          reason over information anywhere in that window with equal reliability. Extended-context
+          serving techniques make long inputs <em>computationally</em> feasible; they do not by
+          themselves guarantee uniform retrieval quality across the whole window (see the
+          "lost in the middle" discussion in Chapter 17).
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: the online softmax recurrence</summary>
+      <p>
+        For a tile of scores <code>sᵢ</code>, online softmax maintains a running max
+        <code>m</code> and running denominator <code>ℓ</code> that update as each new tile arrives:
+        <code>m' = max(m, max(sᵢ))</code>, then rescale the previous accumulated output and
+        denominator by <code>exp(m − m')</code> before adding the new tile's contribution
+        <code>exp(sᵢ − m')</code>. Because rescaling is applied consistently to everything
+        accumulated so far, the final result after all tiles is exactly the same softmax as
+        computing over the whole row at once — no tile has to "see" the whole row to get the exact
+        answer.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-15">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why is it a mistake to say "long context is expensive" without specifying training or
+          decoding?
+          <details><summary>Reveal answer</summary>Because the two costs behave differently: the
+          training-time attention score matrix grows quadratically with sequence length, while each
+          decode step only adds a linear amount of new cache — conflating them can lead to fixing
+          the wrong bottleneck.</details>
+        </li>
+        <li>Is FlashAttention an approximation of standard attention? Why or why not?
+          <details><summary>Reveal answer</summary>No — it computes exactly the same attention
+          output as the standard formula. It only changes how the computation is scheduled across
+          fast (SRAM) and slow (HBM) GPU memory to avoid materializing the full score matrix, saving
+          memory traffic rather than approximating the math.</details>
+        </li>
+        <li>What operating-systems idea does PagedAttention borrow, and what serving problem does it
+          solve?
+          <details><summary>Reveal answer</summary>It borrows paged virtual memory: the KV cache is
+          split into fixed-size, non-contiguous blocks instead of one long contiguous allocation per
+          request. This reduces memory fragmentation from requests of varying length and lets a
+          server hold more concurrent requests in the same memory.</details>
+        </li>
+        <li>Does a long advertised context window guarantee reliable recall across that whole
+          window?
+          <details><summary>Reveal answer</summary>No. Serving-time techniques make long inputs
+          computationally feasible, but retrieval quality can still degrade at some positions within
+          the window (see "lost in the middle," Chapter 17) — advertised length is a capability
+          claim, not a recall guarantee.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-15"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Dao et al., <cite>FlashAttention</cite> (2022). <a href="https://arxiv.org/abs/2205.14135">arxiv.org/abs/2205.14135</a></li>
+      <li>Dao, <cite>FlashAttention-2</cite> (2023). <a href="https://arxiv.org/abs/2307.08691">arxiv.org/abs/2307.08691</a></li>
+      <li>Shah et al., <cite>FlashAttention-3</cite> (2024). <a href="https://arxiv.org/abs/2407.08608">arxiv.org/abs/2407.08608</a></li>
+      <li>Kwon et al., <cite>Efficient Memory Management for Large Language Model Serving with PagedAttention</cite> (2023). See PDF Appendix B annotated bibliography, pp. 64–66.</li>
+      <li>Mistral AI, <cite>Mistral 7B</cite> (2023). <a href="https://arxiv.org/abs/2310.06825">arxiv.org/abs/2310.06825</a></li>
+      <li>Beltagy et al., <cite>Longformer</cite> (2020). <a href="https://arxiv.org/abs/2004.05150">arxiv.org/abs/2004.05150</a></li>
+      <li>Zaheer et al., <cite>Big Bird</cite> (2020). <a href="https://arxiv.org/abs/2007.14062">arxiv.org/abs/2007.14062</a></li>
+      <li>Peng et al., <cite>YaRN: Efficient Context Window Extension of Large Language Models</cite> (2023). <a href="https://arxiv.org/abs/2309.00071">arxiv.org/abs/2309.00071</a></li>
+      <li>Liu et al., <cite>Ring Attention with Blockwise Transformers for Near-Infinite Context</cite> (2023). <a href="https://arxiv.org/abs/2310.01889">arxiv.org/abs/2310.01889</a></li>
+      <li>Munkhdalai et al., <cite>Infini-attention</cite> (2024). <a href="https://arxiv.org/abs/2404.07143">arxiv.org/abs/2404.07143</a></li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 16 ================= -->
+  <section id="ch-16" aria-labelledby="ch-16-title">
+    <h2 id="ch-16-title">Chapter 16. State-Space Models</h2>
+    <span class="era-badge">2021–2023 · Recurrent revival</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 42–44.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      The Transformer's KV cache grows linearly with sequence length forever — there is no fixed
+      ceiling on how much memory a long conversation eventually consumes. State-space models (SSMs)
+      revisit the RNN's fixed-size hidden state, but redesign the recurrence itself — using
+      HiPPO-motivated structured matrices (S4) and, in Mamba, input-dependent ("selective") dynamics
+      — so it can be trained efficiently in parallel and can actually retain long-range information
+      competitively, something plain RNNs from Chapter 5 could not do.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>S4 uses structured, HiPPO-initialized linear state-space matrices and a convolutional
+        reformulation to train in parallel like a Transformer, while keeping a bounded, fixed-size
+        state.</li>
+      <li>Mamba makes the state-space parameters input-selective — they change per token — which
+        increases expressivity beyond S4's fixed-linear dynamics, at the cost of losing the plain
+        convolutional reformulation.</li>
+      <li>Mamba restores efficient parallel training through an associative <strong>parallel
+        scan</strong> — an algorithmic reformulation of the recurrence, not a hardware trick — rather
+        than a convolution.</li>
+      <li>SSMs trade the Transformer's unlimited exact content lookup (the KV cache) for a bounded
+        memory footprint and near-linear sequence cost — favorable for long, low-redundancy
+        sequences, weaker on tasks needing precise recall of one specific earlier token (e.g., exact
+        copy/lookup).</li>
+      <li>HiPPO theory motivates the <em>specific</em> state matrices used, rather than an arbitrary
+        recurrent design, explaining why a fixed-size state can still approximate a long history
+        well.</li>
+      <li>Hybrid designs mixing attention layers with SSM layers are an active research direction,
+        not a settled replacement of the Transformer.</li>
+    </ul>
+
+    <h3 id="ch-16-s4">From RNN to structured state space</h3>
+    <p>
+      Chapter 5's vanilla RNN already has a "state-space" form — a hidden state updated by a
+      recurrence — but its unconstrained, densely-trained transition matrix is exactly what causes
+      vanishing/exploding gradients under BPTT. S4 (Structured State Space) instead initializes the
+      transition matrix using HiPPO ("High-order Polynomial Projection Operator") theory, which
+      derives a matrix specifically constructed so that a fixed-size state can optimally compress a
+      continuous history under certain smoothness assumptions. Critically, this particular structured
+      form admits an equivalent <em>convolutional</em> view — the same sequence-to-sequence mapping
+      can be computed either as a step-by-step recurrence (cheap at inference, one step at a time) or
+      as a single large convolution (parallelizable at training time, like attention), giving S4 both
+      Transformer-like training parallelism and RNN-like bounded state.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-16-1-title">
+      <img src="assets/diagrams/ssm-views.svg" alt="Diagram showing the same state-space model presented in two equivalent forms: a step-by-step recurrent view where a fixed-size hidden state is updated one token at a time, and a convolutional view where the whole output sequence is computed as one large convolution of the input with a derived kernel, with an arrow indicating Mamba's selective, input-dependent variant breaks the exact convolutional equivalence and uses a parallel scan instead." loading="lazy">
+      <figcaption id="dg-16-1-title">Figure 16.1. State-space model: recurrent view vs. convolutional view, and Mamba's selective/parallel-scan variant.</figcaption>
+    </figure>
+
+    <h3 id="ch-16-mamba">Mamba &amp; selective scan</h3>
+    <p>
+      S4's transition matrices are fixed once trained — the same dynamics apply to every input
+      regardless of content. Mamba makes the state-space parameters functions of the current input
+      token ("selectivity"), letting the model decide, per token, how much to write into or forget
+      from its state — much closer to what an LSTM's gates do, but within a state-space formulation.
+      This breaks S4's exact convolutional equivalence (the dynamics are no longer fixed, so there is
+      no single fixed convolution kernel), so Mamba instead uses a <strong>parallel (associative)
+      scan</strong>: a way of computing a sequential recurrence's outputs for all positions using a
+      logarithmic-depth tree of associative combination operations, rather than one strictly serial
+      step at a time — restoring most of the training-time parallelism S4 had, for an
+      input-dependent recurrence.
+    </p>
+
+    <h3 id="ch-16-tradeoffs">SSM vs. Transformer trade-offs</h3>
+    <p>
+      A Transformer's KV cache is, in effect, a perfect, ever-growing record of every past token —
+      excellent for tasks requiring exact recall of one arbitrary earlier item (e.g., copying a
+      specific number mentioned once, far back). An SSM's state is fixed-size by construction: it
+      must compress the entire history into that fixed size, which favors tasks dominated by
+      aggregate, smoothly-decaying relevance over tasks needing pinpoint recall of an arbitrary token.
+      Because the two approaches fail on different task shapes, most careful comparisons report
+      workload-dependent results rather than a universal winner.
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 16.1. Sequence-modeling state and complexity comparison.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Model</th><th scope="col">Form</th><th scope="col">State size</th><th scope="col">Training parallelism</th><th scope="col">Key trade-off</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">RNN / LSTM (Ch. 5–6)</th><td>Serial recurrence</td><td>Fixed, small</td><td>None — strictly sequential</td><td>Bounded state but slow to train; gating helps gradients, not parallelism</td></tr>
+            <tr><th scope="row">Transformer attention (Ch. 9)</th><td>Content-addressed lookup over all past positions</td><td>Grows linearly (KV cache)</td><td>Full — all positions computed at once</td><td>Exact arbitrary recall, unbounded memory growth</td></tr>
+            <tr><th scope="row">S4</th><td>Structured linear recurrence ≡ convolution</td><td>Fixed, small</td><td>Full, via convolutional form</td><td>Bounded state and parallel training, but fixed (non-selective) dynamics</td></tr>
+            <tr><th scope="row">Mamba</th><td>Selective (input-dependent) recurrence</td><td>Fixed, small</td><td>Full, via parallel associative scan</td><td>Higher expressivity than S4; weaker at exact pinpoint recall than attention</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book</p>
+      <div class="callout-body">
+        <p>
+          RWKV takes a related but distinct route: a recurrent formulation designed to support
+          Transformer-like parallel training while still running as a fast, fixed-state recurrence at
+          inference.<sup><a href="#ch-16-src-1">[1]</a></sup> Claims about SSM- or RWKV-family
+          adoption at the frontier relative to Transformers are <strong>interpretation, and change
+          quickly</strong> — treat them as workload-dependent, not a settled verdict.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why HiPPO's structure matters</summary>
+      <p>
+        A fixed-size state that simply averaged or randomly forgot the past would lose old
+        information indiscriminately. HiPPO instead derives transition matrices that make the
+        state's coefficients an optimal (in a precise mathematical sense) online projection of the
+        input history onto a family of orthogonal polynomials, weighted so that the projection
+        degrades gracefully rather than catastrophically as history grows. This is why S4's
+        specific initialization — not just "any" structured recurrence — is what makes long-range
+        retention practical.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-16">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>What memory-growth problem do state-space models solve relative to standard
+          Transformer attention?
+          <details><summary>Reveal answer</summary>They replace the Transformer's linearly-growing
+          KV cache with a fixed-size recurrent state, so memory does not keep growing as the sequence
+          gets longer.</details>
+        </li>
+        <li>What does "selective" mean in Mamba, and what does it cost?
+          <details><summary>Reveal answer</summary>Selective means the state-space transition
+          parameters are computed per token, as a function of the input, rather than being fixed
+          after training as in S4. This increases expressivity but breaks S4's exact convolutional
+          reformulation, requiring a parallel associative scan instead to keep training parallel.</details>
+        </li>
+        <li>Why might an SSM underperform a Transformer on a task that requires copying one specific
+          token from far earlier in the input?
+          <details><summary>Reveal answer</summary>An SSM must compress the entire history into a
+          fixed-size state, so pinpoint recall of one arbitrary earlier item can be lossy; a
+          Transformer's KV cache retains every past token's representation directly and can attend to
+          it exactly.</details>
+        </li>
+        <li>Is it accurate to say SSMs have replaced Transformers as the dominant architecture?
+          <details><summary>Reveal answer</summary>No — comparative adoption and quality are
+          workload-dependent and change quickly; the source and current research treat this as an
+          open, fast-moving question rather than a settled replacement.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-16"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li id="ch-16-src-1">Peng et al., <cite>RWKV: Reinventing RNNs for the Transformer Era</cite> (2023). <a href="https://arxiv.org/abs/2305.13048">arxiv.org/abs/2305.13048</a></li>
+      <li>Gu &amp; Dao, <cite>Mamba: Linear-Time Sequence Modeling with Selective State Spaces</cite> (2023). <a href="https://arxiv.org/abs/2312.00752">arxiv.org/abs/2312.00752</a></li>
+      <li>Gu et al., structured state-space and HiPPO foundations. See PDF Appendix B annotated bibliography, pp. 64–66.</li>
+    </ol>
+  </section>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="part-3-scaling.html">← Part 3: Learning at Scale</a>
+    <a href="part-5-frontiers.html">Part 5: Frontiers →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>Content adapted from <cite>LLM Architecture Evolution.pdf</cite> (78 pp.), supplemented with
+    dated external sources where marked "Beyond the book." Mechanism descriptions are treated as
+    stable; current-model and benchmark comparisons are explicitly caveated as fast-aging.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Part 4 of 6 · Chapters 13–16 · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

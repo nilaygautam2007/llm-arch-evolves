@@ -1,0 +1,8 @@
+@media print{
+  :root{--color-bg:#fff;--color-text:#000;--color-surface:#fff;--color-border:#777}
+  body{font-size:11pt;color:#000;background:#fff}.site-header,.toc-sidebar,.mobile-toc,.toc-mobile,.site-footer,.skip-link,.nav-toggle,.search-dialog,.copy-btn,.flashcard-controls,.practice-controls,.display-menu{display:none!important}
+  .page-layout,.home-main{display:block;max-width:none;margin:0;padding:0}.hero{padding:0;background:#fff;border:0}.card,.dashboard-card,.study-step,.checkpoint,.callout{box-shadow:none;break-inside:avoid}
+  details:not([open])>:not(summary){display:block!important}details{border:0;padding:0}summary{list-style:none}summary::-webkit-details-marker{display:none}
+  section[id^="ch-"]{break-before:page}.comparison-table-wrap,.diagram,table,figure{break-inside:avoid}.table-scroll{overflow:visible}.comparison-table{font-size:8.5pt}.comparison-table th,.comparison-table td{padding:4pt}
+  a{color:#000;text-decoration:underline}.timeline{display:block;overflow:visible}.timeline-item{display:block;break-inside:avoid;margin:8pt 0}.concept-map{max-height:5in}.flashcard{min-height:0;border:1px solid #000}.nojs-card{break-inside:avoid}
+}

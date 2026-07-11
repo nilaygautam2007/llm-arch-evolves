@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · LLM Architecture Evolution</title>
+<meta name="description" content="Alphabetized, deep-linkable glossary of terms from the LLM Architecture Evolution monograph plus research-added terms.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html">Part 4</a></li>
+        <li><a href="part-5-frontiers.html">Part 5</a></li>
+        <li><a href="part-6-synthesis.html">Part 6</a></li>
+        <li><a href="glossary.html" aria-current="page">Glossary</a></li>
+        <li><a href="appendices.html">Appendices</a></li>
+        <li><a href="code-appendix.html">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Reference</div>
+  </div>
+</header>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="Jump to letter">
+  <p class="toc-heading">Jump to letter</p>
+  <nav class="glossary-alphabet" aria-label="Alphabet index">
+    <a href="#letter-a">A</a><a href="#letter-b">B</a><a href="#letter-c">C</a><a href="#letter-d">D</a>
+    <a href="#letter-e">E</a><a href="#letter-f">F</a><a href="#letter-g">G</a><a href="#letter-h">H</a>
+    <a href="#letter-i">I</a><a href="#letter-k">K</a><a href="#letter-l">L</a><a href="#letter-m">M</a>
+    <a href="#letter-n">N</a><a href="#letter-o">O</a><a href="#letter-p">P</a><a href="#letter-r">R</a>
+    <a href="#letter-s">S</a><a href="#letter-t">T</a><a href="#letter-v">V</a><a href="#letter-w">W</a>
+    <a href="#letter-y">Y</a>
+  </nav>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Glossary</nav>
+
+  <h1>Glossary</h1>
+  <p class="part-intro">
+    Every term below is deep-linkable (each has its own <code>#term-…</code> anchor you can bookmark
+    or share) and every entry is fully visible in this page's plain HTML — nothing here requires
+    JavaScript to read. Terms tagged <span class="source-badge" data-source="pdf">pdf</span> come from
+    the source monograph's own glossary (Appendix C, pp. 66–67); terms tagged
+    <span class="source-badge" data-source="research">research</span> are added from supplemental
+    research to cover mechanisms and systems the source predates or only mentions briefly. This page
+    works identically with JavaScript disabled; when JavaScript is available, the filter box below
+    narrows the list live.
+  </p>
+
+  <div class="glossary-controls">
+    <label for="glossary-filter-input" class="js-only">Filter terms</label>
+    <input type="search" id="glossary-filter-input" class="js-only" data-glossary-filter
+      placeholder="Filter glossary terms… (e.g. attention, cache, routing)"
+      aria-label="Filter glossary terms">
+    <div class="glossary-source-filter js-only" role="group" aria-label="Filter by source">
+      <button type="button" data-source-filter-value="all" aria-pressed="true">All</button>
+      <button type="button" data-source-filter-value="pdf" aria-pressed="false">Book (pdf)</button>
+      <button type="button" data-source-filter-value="research" aria-pressed="false">Beyond the book</button>
+    </div>
+    <p id="glossary-result-count" class="js-only" aria-live="polite"></p>
+  </div>
+
+  <p class="no-js-note">
+    Without JavaScript: browse alphabetically using the letter index above, or use your browser's
+    own find-in-page (Ctrl/Cmd+F) — every term and definition is plain, always-visible text.
+  </p>
+
+  <dl class="glossary-list" id="glossary-list">
+
+    <section id="letter-a"><h2 class="glossary-letter">A</h2>
+
+      <div class="glossary-entry" id="term-adamw" data-term="AdamW" data-source="pdf">
+        <dt>AdamW <a class="anchor-link" href="#term-adamw" aria-label="Link to AdamW">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An Adam optimizer variant that decouples weight decay from the gradient-based moment
+          estimates, giving more reliable regularization than plain Adam at the scale of modern LLM
+          training. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+
+      <div class="glossary-entry" id="term-alibi" data-term="ALiBi" data-source="pdf">
+        <dt>ALiBi <a class="anchor-link" href="#term-alibi" aria-label="Link to ALiBi">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A positional scheme that adds a fixed, distance-proportional bias directly to attention
+          scores instead of encoding position in the embeddings; must be trained in from the start,
+          but extrapolates well to sequences longer than training. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+
+      <div class="glossary-entry" id="term-attention" data-term="Attention" data-source="pdf">
+        <dt>Attention <a class="anchor-link" href="#term-attention" aria-label="Link to Attention">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A content-addressed operation that uses a query to weight value vectors by their match
+          with keys, letting a model select relevant information rather than compressing every input
+          into one fixed representation. <span class="glossary-refs">See:
+          <a href="part-2-sequence-models.html#ch-08">Ch. 8</a>, <a href="part-2-sequence-models.html#ch-09">Ch. 9</a></span></dd>
+      </div>
+
+      <div class="glossary-entry" id="term-aux-loss-free" data-term="Auxiliary-loss-free load balancing" data-source="research">
+        <dt>Auxiliary-loss-free load balancing <a class="anchor-link" href="#term-aux-loss-free" aria-label="Link to Auxiliary-loss-free load balancing">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>An MoE load-balancing approach that adjusts a per-expert routing bias directly from recent
+          load, rather than adding an extra weighted loss term, removing a hyperparameter from the
+          training objective. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+
+      <div class="glossary-entry" id="term-awq" data-term="AWQ" data-source="research">
+        <dt>AWQ (Activation-aware Weight Quantization) <a class="anchor-link" href="#term-awq" aria-label="Link to AWQ">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A post-training quantization method that reduces model storage and memory bandwidth by
+          identifying and protecting the weights most sensitive to quantization error. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-b"><h2 class="glossary-letter">B</h2>
+      <div class="glossary-entry" id="term-best-of-n" data-term="Best-of-N" data-source="pdf">
+        <dt>Best-of-<em>N</em> <a class="anchor-link" href="#term-best-of-n" aria-label="Link to Best-of-N">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A test-time-compute strategy: sample <em>N</em> candidate outputs and use a reward or
+          verifier model to select the single best one. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-c"><h2 class="glossary-letter">C</h2>
+      <div class="glossary-entry" id="term-causal-mask" data-term="Causal mask" data-source="pdf">
+        <dt>Causal mask <a class="anchor-link" href="#term-causal-mask" aria-label="Link to Causal mask">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An additive mask on attention scores that forbids position <em>t</em> from attending to any
+          position after <em>t</em>, which is what makes a Transformer a valid autoregressive language
+          model. <span class="glossary-refs">See: <a href="part-2-sequence-models.html#ch-09">Ch. 9</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-chinchilla-scaling" data-term="Chinchilla scaling" data-source="pdf">
+        <dt>Chinchilla scaling <a class="anchor-link" href="#term-chinchilla-scaling" aria-label="Link to Chinchilla scaling">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The finding that many large language models were under-trained relative to their parameter
+          count for their compute budget, shifting emphasis toward more training tokens per parameter.
+          The often-quoted "about 20 tokens per parameter" is a fitted rule of thumb specific to one
+          study's setup, not a universal constant. <span class="glossary-refs">See:
+          <a href="part-3-scaling.html#ch-12">Ch. 12</a>, <a href="appendices.html#appx-d-chinchilla">Appendix D.3</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-clip" data-term="CLIP" data-source="research">
+        <dt>CLIP <a class="anchor-link" href="#term-clip" aria-label="Link to CLIP">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A vision-language model trained with a contrastive objective to align image and text
+          representations, widely reused as an off-the-shelf visual encoder in multimodal LLM systems.
+          <span class="glossary-refs">See: <a href="part-5-frontiers.html#ch-18">Ch. 18</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-context-length" data-term="Context length" data-source="pdf">
+        <dt>Context length <a class="anchor-link" href="#term-context-length" aria-label="Link to Context length">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The maximum number of tokens a model can process as input in one forward pass — a
+          serving/architecture capability, not by itself a guarantee of reliable recall across that
+          entire length. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-cross-attention-fusion" data-term="Cross-attention fusion" data-source="research">
+        <dt>Cross-attention fusion <a class="anchor-link" href="#term-cross-attention-fusion" aria-label="Link to Cross-attention fusion">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A multimodal fusion pattern that injects encoder features into an LLM through dedicated
+          attention layers rather than concatenating them into the input sequence, controlling
+          sequence-length growth (e.g., Flamingo). <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-18">Ch. 18</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-cross-entropy" data-term="Cross-entropy" data-source="pdf">
+        <dt>Cross-entropy <a class="anchor-link" href="#term-cross-entropy" aria-label="Link to Cross-entropy">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The standard next-token training loss; minimizing it is mathematically equivalent to
+          minimizing the KL divergence between the model's predicted distribution and the true
+          conditional distribution. <span class="glossary-refs">See:
+          <a href="appendices.html#appx-a-probability">Appendix A</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-d"><h2 class="glossary-letter">D</h2>
+      <div class="glossary-entry" id="term-dpo" data-term="DPO" data-source="research">
+        <dt>DPO (Direct Preference Optimization) <a class="anchor-link" href="#term-dpo" aria-label="Link to DPO">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A post-training method that optimizes a model directly on pairwise preference data without
+          training a separate reward model — an alternative to full RLHF. A training-procedure
+          change, not an architecture change. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-e"><h2 class="glossary-letter">E</h2>
+      <div class="glossary-entry" id="term-embedding" data-term="Embedding" data-source="pdf">
+        <dt>Embedding <a class="anchor-link" href="#term-embedding" aria-label="Link to Embedding">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A learned, dense vector representation of a discrete token (or other input unit) that
+          places semantically or distributionally similar items nearer each other in vector space.
+          <span class="glossary-refs">See: <a href="part-1-foundations.html#ch-04">Ch. 4</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-expert-choice-routing" data-term="Expert-choice routing" data-source="pdf">
+        <dt>Expert-choice routing <a class="anchor-link" href="#term-expert-choice-routing" aria-label="Link to Expert-choice routing">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An MoE routing scheme in which each expert selects the tokens it processes up to a fixed
+          capacity, bounding per-expert load by construction — in contrast to token-choice routing.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-expert-parallelism" data-term="Expert parallelism" data-source="pdf">
+        <dt>Expert parallelism <a class="anchor-link" href="#term-expert-parallelism" aria-label="Link to Expert parallelism">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>Sharding an MoE model's experts across multiple accelerators, requiring an all-to-all
+          communication step to move each token to its assigned expert's device and back.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-f"><h2 class="glossary-letter">F</h2>
+      <div class="glossary-entry" id="term-flashattention" data-term="FlashAttention" data-source="pdf">
+        <dt>FlashAttention <a class="anchor-link" href="#term-flashattention" aria-label="Link to FlashAttention">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An exact (non-approximate) attention algorithm that computes scores tile-by-tile using an
+          online/running softmax, avoiding materializing the full score matrix in slow GPU memory.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a>,
+          <a href="code-appendix.html#code-e4">Code E.4</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-g"><h2 class="glossary-letter">G</h2>
+      <div class="glossary-entry" id="term-gptq" data-term="GPTQ" data-source="research">
+        <dt>GPTQ <a class="anchor-link" href="#term-gptq" aria-label="Link to GPTQ">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A post-training quantization method for reducing LLM weight precision (and memory
+          footprint) while limiting accuracy loss, using layer-wise error compensation.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-gqa" data-term="GQA" data-source="pdf">
+        <dt>GQA (Grouped-Query Attention) <a class="anchor-link" href="#term-gqa" aria-label="Link to GQA">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An attention variant in which groups of query heads share a single key/value head, trading
+          some per-head expressivity for a smaller KV cache than full multi-head attention.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-grpo" data-term="GRPO" data-source="research">
+        <dt>GRPO <a class="anchor-link" href="#term-grpo" aria-label="Link to GRPO">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A reinforcement-learning post-training method (used in DeepSeekMath/DeepSeek-R1-style
+          training) that optimizes relative to a group of sampled outputs rather than a learned value
+          function; a training-procedure innovation, not an architecture change.
+          <span class="glossary-refs">See: <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-h"><h2 class="glossary-letter">H</h2>
+      <div class="glossary-entry" id="term-head-dimension" data-term="Head dimension" data-source="pdf">
+        <dt>Head dimension <a class="anchor-link" href="#term-head-dimension" aria-label="Link to Head dimension">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The width of each individual attention head's query/key/value vectors, typically the model
+          dimension divided by the number of heads. <span class="glossary-refs">See:
+          <a href="part-2-sequence-models.html#ch-09">Ch. 9</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-hippo" data-term="HiPPO" data-source="pdf">
+        <dt>HiPPO <a class="anchor-link" href="#term-hippo" aria-label="Link to HiPPO">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A theoretical framework deriving structured state-space transition matrices that let a
+          fixed-size recurrent state optimally compress a continuous input history, underlying S4's
+          initialization. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-16">Ch. 16</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-i"><h2 class="glossary-letter">I</h2>
+      <div class="glossary-entry" id="term-infini-attention" data-term="Infini-attention" data-source="research">
+        <dt>Infini-attention <a class="anchor-link" href="#term-infini-attention" aria-label="Link to Infini-attention">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A long-context technique that compresses older attention information into a fixed-size
+          compressive memory rather than discarding it or keeping it in a fully-growing cache.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-k"><h2 class="glossary-letter">K</h2>
+      <div class="glossary-entry" id="term-kv-cache" data-term="KV cache" data-source="pdf">
+        <dt>KV cache <a class="anchor-link" href="#term-kv-cache" aria-label="Link to KV cache">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The stored key and value vectors for every previously generated token, reused at each new
+          decoding step so attention need not be recomputed from scratch; grows linearly with sequence
+          length and dominates long-context serving memory. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a>, <a href="appendices.html#appx-d-kv">Appendix D.2</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-l"><h2 class="glossary-letter">L</h2>
+      <div class="glossary-entry" id="term-lost-in-the-middle" data-term="Lost in the middle" data-source="research">
+        <dt>Lost in the middle <a class="anchor-link" href="#term-lost-in-the-middle" aria-label="Link to Lost in the middle">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>The empirical finding that models can attend less reliably to information placed in the
+          middle of a long context than information near the start or end — directly relevant to where
+          retrieved passages are placed in a RAG pipeline. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-17">Ch. 17</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-m"><h2 class="glossary-letter">M</h2>
+      <div class="glossary-entry" id="term-mamba" data-term="Mamba" data-source="research">
+        <dt>Mamba <a class="anchor-link" href="#term-mamba" aria-label="Link to Mamba">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A selective state-space model whose recurrence parameters are input-dependent per token,
+          restoring training parallelism via an associative parallel scan rather than S4's fixed
+          convolutional form. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-16">Ch. 16</a>,
+          <a href="code-appendix.html#code-e6">Code E.6</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-mla" data-term="MLA" data-source="research">
+        <dt>MLA (Multi-Head Latent Attention) <a class="anchor-link" href="#term-mla" aria-label="Link to MLA">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>An attention variant (introduced in DeepSeek-V3) that compresses cached key/value
+          information for all heads into a single low-rank latent vector per token — a further point
+          on the KV-cache-compression spectrum beyond GQA/MQA. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-model-dimension" data-term="Model dimension" data-source="pdf">
+        <dt>Model dimension (d_model) <a class="anchor-link" href="#term-model-dimension" aria-label="Link to Model dimension">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The width of the residual stream / hidden representation carried through every layer of a
+          Transformer. <span class="glossary-refs">See: <a href="part-2-sequence-models.html#ch-09">Ch. 9</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-moe" data-term="MoE" data-source="pdf">
+        <dt>MoE (Mixture-of-Experts) <a class="anchor-link" href="#term-moe" aria-label="Link to MoE">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An architecture in which a router activates only a small subset ("top-k") of many expert
+          feed-forward sub-networks per token, decoupling total model capacity from per-token active
+          compute. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-mqa" data-term="MQA" data-source="pdf">
+        <dt>MQA (Multi-Query Attention) <a class="anchor-link" href="#term-mqa" aria-label="Link to MQA">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An attention variant in which all query heads share a single key/value head, minimizing
+          KV-cache size at the cost of reduced per-head expressivity compared to GQA or full MHA.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-multi-token-prediction" data-term="Multi-token prediction" data-source="research">
+        <dt>Multi-token prediction <a class="anchor-link" href="#term-multi-token-prediction" aria-label="Link to Multi-token prediction">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>An auxiliary training objective/head that predicts several future tokens at once rather
+          than only the next one, used alongside MoE routing in some recent systems as a
+          training-signal enhancement. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-mup" data-term="μP" data-source="pdf">
+        <dt>μP (Maximal Update Parametrization) <a class="anchor-link" href="#term-mup" aria-label="Link to mu-P">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A principled rescaling of initialization, learning rate, and layer outputs by model width
+          that lets hyperparameters tuned on a small proxy model transfer reliably to a much larger
+          model. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-n"><h2 class="glossary-letter">N</h2>
+      <div class="glossary-entry" id="term-ntk-aware-scaling" data-term="NTK-aware scaling" data-source="research">
+        <dt>NTK-aware scaling <a class="anchor-link" href="#term-ntk-aware-scaling" aria-label="Link to NTK-aware scaling">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A RoPE context-extension technique that scales rotation frequencies unevenly — preserving
+          short-range precision while compressing long-range behavior — rather than applying one
+          uniform interpolation factor. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-o"><h2 class="glossary-letter">O</h2>
+      <div class="glossary-entry" id="term-online-softmax" data-term="Online softmax" data-source="pdf">
+        <dt>Online softmax <a class="anchor-link" href="#term-online-softmax" aria-label="Link to Online softmax">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A running-maximum, running-denominator technique for computing an exact softmax
+          incrementally over small tiles of a score row, without ever holding the full row in memory
+          at once — the algorithmic core of FlashAttention. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a>, <a href="code-appendix.html#code-e4">Code E.4</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-orm" data-term="ORM" data-source="pdf">
+        <dt>ORM (Outcome Reward Model) <a class="anchor-link" href="#term-orm" aria-label="Link to ORM">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A reward model trained to judge only whether a final answer is correct, given the full
+          reasoning trace that produced it — cheaper to supervise than a PRM but gives no per-step
+          signal. <span class="glossary-refs">See: <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-p"><h2 class="glossary-letter">P</h2>
+      <div class="glossary-entry" id="term-pagedattention" data-term="PagedAttention" data-source="pdf">
+        <dt>PagedAttention <a class="anchor-link" href="#term-pagedattention" aria-label="Link to PagedAttention">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A KV-cache management technique that stores cached keys/values in fixed-size,
+          non-contiguous memory blocks (like OS virtual memory paging), reducing fragmentation and
+          increasing serving batch size. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-perplexity" data-term="Perplexity" data-source="pdf">
+        <dt>Perplexity <a class="anchor-link" href="#term-perplexity" aria-label="Link to Perplexity">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd><code>exp(cross-entropy)</code>; rescales the training loss into "effective number of
+          equally likely next-token choices" units that are easier to reason about intuitively.
+          <span class="glossary-refs">See: <a href="part-1-foundations.html#ch-01">Ch. 1</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-position-interpolation" data-term="Position interpolation" data-source="pdf">
+        <dt>Position interpolation <a class="anchor-link" href="#term-position-interpolation" aria-label="Link to Position interpolation">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A RoPE context-extension method that rescales position indices by the ratio of trained to
+          target context length before computing rotation angles, keeping angles within the model's
+          trained range. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-15">Ch. 15</a>,
+          <a href="appendices.html#appx-d-rope">Appendix D.6</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-post-norm" data-term="Post-norm" data-source="pdf">
+        <dt>Post-norm <a class="anchor-link" href="#term-post-norm" aria-label="Link to Post-norm">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The original Transformer normalization placement, normalizing the output of each sub-layer
+          (including the residual sum) rather than its input; generally needs more careful warmup to
+          train stably at large depth than pre-norm. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-pre-norm" data-term="Pre-norm" data-source="pdf">
+        <dt>Pre-norm <a class="anchor-link" href="#term-pre-norm" aria-label="Link to Pre-norm">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A normalization placement that normalizes only a sub-layer's input, leaving the
+          accumulating residual stream itself unnormalized; more stable for training very deep
+          Transformers. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-prm" data-term="PRM" data-source="pdf">
+        <dt>PRM (Process Reward Model) <a class="anchor-link" href="#term-prm" aria-label="Link to PRM">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A reward model trained to score the correctness of each individual step in a reasoning
+          trace, giving more granular training and search signal than an outcome-only reward model, at
+          the cost of needing step-level supervision. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-projector-adapter-fusion" data-term="Projector adapter fusion" data-source="research">
+        <dt>Projector / adapter fusion <a class="anchor-link" href="#term-projector-adapter-fusion" aria-label="Link to Projector adapter fusion">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A multimodal connector strategy in which a small trainable network maps a largely-frozen
+          encoder's features into an LLM's fusion point, letting most of the encoder and LLM stay
+          frozen during the cheapest training stage. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-18">Ch. 18</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-r"><h2 class="glossary-letter">R</h2>
+      <div class="glossary-entry" id="term-rag" data-term="RAG" data-source="pdf">
+        <dt>RAG (Retrieval-Augmented Generation) <a class="anchor-link" href="#term-rag" aria-label="Link to RAG">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An architecture pattern that conditions generation on passages retrieved from an external,
+          updatable index, moving mutable or long-tail facts out of model weights (parametric memory)
+          and into a searchable store (non-parametric memory). <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-17">Ch. 17</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-residual-stream" data-term="Residual stream" data-source="pdf">
+        <dt>Residual stream <a class="anchor-link" href="#term-residual-stream" aria-label="Link to Residual stream">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The running total that each Transformer sub-layer adds a small correction to
+          (<code>x ← x + f(x)</code>); the primary reason gradients can flow across many layers without
+          vanishing. <span class="glossary-refs">See: <a href="part-2-sequence-models.html#ch-09">Ch. 9</a>,
+          <a href="part-4-efficiency.html#ch-13-residual">Ch. 13</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-rlhf" data-term="RLHF" data-source="research">
+        <dt>RLHF (Reinforcement Learning from Human Feedback) <a class="anchor-link" href="#term-rlhf" aria-label="Link to RLHF">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A post-training method that fine-tunes a model using a reward signal derived from human
+          preference data — a training-procedure innovation applied to a fixed architecture, not a
+          change to the forward pass. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-ring-attention" data-term="Ring Attention" data-source="research">
+        <dt>Ring Attention <a class="anchor-link" href="#term-ring-attention" aria-label="Link to Ring Attention">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A distributed attention technique that shards a very long sequence across multiple devices
+          arranged in a ring, overlapping communication with computation to scale context length
+          beyond a single device's memory. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-rmsnorm" data-term="RMSNorm" data-source="pdf">
+        <dt>RMSNorm <a class="anchor-link" href="#term-rmsnorm" aria-label="Link to RMSNorm">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A normalization function that scales activations by their root-mean-square magnitude only,
+          omitting LayerNorm's mean-centering and bias term for a cheaper per-layer computation.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a>,
+          <a href="code-appendix.html#code-e3">Code E.3</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-rope" data-term="RoPE" data-source="pdf">
+        <dt>RoPE (Rotary Position Embedding) <a class="anchor-link" href="#term-rope" aria-label="Link to RoPE">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A positional scheme that rotates query/key vectors by an angle proportional to position, so
+          attention scores depend on relative offset even though no relative term is computed
+          explicitly. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a>,
+          <a href="code-appendix.html#code-e2">Code E.2</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-rwkv" data-term="RWKV" data-source="research">
+        <dt>RWKV <a class="anchor-link" href="#term-rwkv" aria-label="Link to RWKV">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A recurrent architecture designed to train with Transformer-like parallelism while running
+          as a fast, fixed-state recurrence at inference — an alternative to both plain Transformers
+          and SSMs. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-16">Ch. 16</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-s"><h2 class="glossary-letter">S</h2>
+      <div class="glossary-entry" id="term-self-consistency" data-term="Self-consistency" data-source="pdf">
+        <dt>Self-consistency <a class="anchor-link" href="#term-self-consistency" aria-label="Link to Self-consistency">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A test-time-compute strategy: sample multiple reasoning chains for the same problem and
+          take a majority vote across their final answers. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-selective-scan" data-term="Selective scan" data-source="pdf">
+        <dt>Selective scan <a class="anchor-link" href="#term-selective-scan" aria-label="Link to Selective scan">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>An associative-scan algorithm that computes a selective (input-dependent) state-space
+          recurrence's outputs for an entire sequence with logarithmic-depth parallel structure rather
+          than one strictly serial step at a time. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-16">Ch. 16</a>, <a href="code-appendix.html#code-e6">Code E.6</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-sliding-window-attention" data-term="Sliding-window attention" data-source="research">
+        <dt>Sliding-window attention <a class="anchor-link" href="#term-sliding-window-attention" aria-label="Link to Sliding-window attention">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A sparse-attention pattern that restricts each token to attend only within a fixed-size
+          local window, stacking windows across layers so information can still propagate over longer
+          effective ranges (e.g., Mistral 7B). <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a>, <a href="code-appendix.html#code-e7">Code E.7</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-speculative-decoding" data-term="Speculative decoding" data-source="research">
+        <dt>Speculative decoding <a class="anchor-link" href="#term-speculative-decoding" aria-label="Link to Speculative decoding">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>A decoding-system technique that uses a small draft model to propose several tokens which a
+          larger model verifies in parallel, speeding up generation without changing the larger
+          model's output distribution. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-ssm" data-term="SSM" data-source="pdf">
+        <dt>SSM (State-Space Model) <a class="anchor-link" href="#term-ssm" aria-label="Link to SSM">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A sequence-modeling family that maintains a fixed-size recurrent state updated by a
+          (possibly input-selective) linear recurrence, trading the Transformer's unbounded KV cache
+          for bounded memory. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-16">Ch. 16</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-swiglu" data-term="SwiGLU" data-source="pdf">
+        <dt>SwiGLU <a class="anchor-link" href="#term-swiglu" aria-label="Link to SwiGLU">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A gated feed-forward design that multiplies a SiLU-activated gate branch elementwise into a
+          value branch before the output projection, outperforming a plain ReLU MLP at matched compute.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a>,
+          <a href="code-appendix.html#code-e3">Code E.3</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-top-1-routing" data-term="Switch Transformer top-1 routing" data-source="research">
+        <dt>Switch Transformer / top-1 routing <a class="anchor-link" href="#term-top-1-routing" aria-label="Link to Switch Transformer top-1 routing">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>The simplest MoE routing design, activating only the single highest-scoring expert per
+          token; efficient but most sensitive to routing collapse without careful load balancing.
+          <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-t"><h2 class="glossary-letter">T</h2>
+      <div class="glossary-entry" id="term-test-time-compute" data-term="Test-time compute" data-source="pdf">
+        <dt>Test-time compute <a class="anchor-link" href="#term-test-time-compute" aria-label="Link to Test-time compute">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>Additional inference-time computation—such as sampling, search, verification, or
+          refinement—used around a base model forward pass to improve a selected answer. <span class="glossary-refs">See:
+          <a href="part-5-frontiers.html#ch-19">Ch. 19</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-token" data-term="Token" data-source="pdf">
+        <dt>Token <a class="anchor-link" href="#term-token" aria-label="Link to Token">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The atomic discrete unit (word, subword, or character piece) a language model's vocabulary
+          is built from and that it predicts one at a time. <span class="glossary-refs">See:
+          <a href="part-1-foundations.html#ch-01">Ch. 1</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-token-choice-routing" data-term="Token-choice routing" data-source="pdf">
+        <dt>Token-choice routing <a class="anchor-link" href="#term-token-choice-routing" aria-label="Link to Token-choice routing">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The default MoE routing scheme in which each token independently selects its own top-k
+          experts, in contrast to expert-choice routing. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-14">Ch. 14</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-v"><h2 class="glossary-letter">V</h2>
+      <div class="glossary-entry" id="term-vit" data-term="Vision Transformer ViT" data-source="research">
+        <dt>Vision Transformer (ViT) <a class="anchor-link" href="#term-vit" aria-label="Link to Vision Transformer">#</a> <span class="source-badge" data-source="research">research</span></dt>
+        <dd>An architecture that splits an image into fixed-size patches, linearly projects each into a
+          token-sized vector, and processes the resulting sequence with an ordinary Transformer
+          encoder. <span class="glossary-refs">See: <a href="part-5-frontiers.html#ch-18">Ch. 18</a></span></dd>
+      </div>
+      <div class="glossary-entry" id="term-vocabulary" data-term="Vocabulary" data-source="pdf">
+        <dt>Vocabulary <a class="anchor-link" href="#term-vocabulary" aria-label="Link to Vocabulary">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>The fixed set of discrete tokens a language model can emit or condition on; its size
+          directly determines the cost of the final softmax layer. <span class="glossary-refs">See:
+          <a href="part-1-foundations.html#ch-01">Ch. 1</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-w"><h2 class="glossary-letter">W</h2>
+      <div class="glossary-entry" id="term-warmup" data-term="Warmup" data-source="pdf">
+        <dt>Warmup <a class="anchor-link" href="#term-warmup" aria-label="Link to Warmup">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A short initial phase of training in which the learning rate ramps up linearly from zero,
+          avoiding destabilizing a randomly initialized network with a large learning rate from step
+          one. <span class="glossary-refs">See: <a href="part-4-efficiency.html#ch-13">Ch. 13</a>,
+          <a href="code-appendix.html#code-e8">Code E.8</a></span></dd>
+      </div>
+    </section>
+
+    <section id="letter-y"><h2 class="glossary-letter">Y</h2>
+      <div class="glossary-entry" id="term-yarn" data-term="YaRN" data-source="pdf">
+        <dt>YaRN <a class="anchor-link" href="#term-yarn" aria-label="Link to YaRN">#</a> <span class="source-badge" data-source="pdf">pdf</span></dt>
+        <dd>A RoPE context-extension method that, like NTK-aware scaling, adjusts rotation frequencies
+          unevenly across dimensions rather than uniformly, extrapolating to longer contexts with less
+          quality loss than naive position interpolation. <span class="glossary-refs">See:
+          <a href="part-4-efficiency.html#ch-15">Ch. 15</a></span></dd>
+      </div>
+    </section>
+
+  </dl>
+
+  <p class="glossary-empty-state js-only" id="glossary-empty-state" hidden>No terms match your filter.</p>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="code-appendix.html">← Code Appendix</a>
+    <a href="sitemap.html">Sitemap →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>Terms marked <span class="source-badge" data-source="pdf">pdf</span> are drawn from
+    <cite>LLM Architecture Evolution.pdf</cite> Appendix C (pp. 66–67); terms marked
+    <span class="source-badge" data-source="research">research</span> are added from supplemental
+    research to cover mechanisms the source predates or only mentions briefly.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Reference · Glossary (Appendix C + research terms) · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

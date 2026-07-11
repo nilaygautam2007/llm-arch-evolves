@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Part 6: Synthesis (Ch. 20–23) · LLM Architecture Evolution</title>
+<meta name="description" content="Comparative architecture analysis, open problems and tensions, how to invent new architectures, and the conclusion.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html">Part 4</a></li>
+        <li><a href="part-5-frontiers.html">Part 5</a></li>
+        <li><a href="part-6-synthesis.html" aria-current="page">Part 6</a></li>
+        <li><a href="glossary.html">Glossary</a></li>
+        <li><a href="appendices.html">Appendices</a></li>
+        <li><a href="code-appendix.html">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Part 6 of 6</div>
+  </div>
+</header>
+
+<details class="toc-mobile">
+  <summary>On this page</summary>
+  <ol>
+    <li><a href="#ch-20">Ch. 20 Comparative Architecture Analysis</a></li>
+    <li><a href="#ch-21">Ch. 21 Open Problems &amp; Tensions</a></li>
+    <li><a href="#ch-22">Ch. 22 How to Invent New Architectures</a></li>
+    <li><a href="#ch-23">Ch. 23 Conclusion</a></li>
+  </ol>
+</details>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="On this page">
+  <p class="toc-heading">On this page</p>
+  <ol>
+    <li><a href="#ch-20">Ch. 20 Comparative Architecture Analysis</a>
+      <ol>
+        <li><a href="#ch-20-unified">Unified sequence-mixing comparison</a></li>
+        <li><a href="#ch-20-constraint">Binding constraint → best architecture</a></li>
+        <li><a href="#ch-20-crosswalk">Beyond the book: current model crosswalk</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-21">Ch. 21 Open Problems &amp; Tensions</a>
+      <ol>
+        <li><a href="#ch-21-memory">Memory vs. compute</a></li>
+        <li><a href="#ch-21-reasoning">Reasoning vs. pattern matching</a></li>
+        <li><a href="#ch-21-sparsity">Sparsity vs. stability</a></li>
+        <li><a href="#ch-21-generalization">Generalization vs. memorization</a></li>
+        <li><a href="#ch-21-alignment">Alignment vs. architecture</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-22">Ch. 22 How to Invent New Architectures</a>
+      <ol>
+        <li><a href="#ch-22-worksheet">The constraint worksheet</a></li>
+        <li><a href="#ch-22-questions">Evaluation questions</a></li>
+        <li><a href="#ch-22-failures">Common failure patterns</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-23">Ch. 23 Conclusion</a>
+      <ol>
+        <li><a href="#ch-23-arc">The historical arc</a></li>
+        <li><a href="#ch-23-durable">Durable ideas</a></li>
+        <li><a href="#ch-23-next">Likely next directions</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Part 6: Synthesis</nav>
+
+  <h1>Part 6. Synthesis</h1>
+  <p class="part-intro">
+    Part 6 steps back from individual mechanisms to the book's argument as a whole. Chapter 20
+    puts every architecture family from Chapters 1–19 into direct, tabular comparison. Chapter 21
+    names the tensions that are genuinely unresolved rather than pretending any one architecture
+    has "won." Chapter 22 turns the book's constraint-reallocation lens into a practical checklist
+    for evaluating — or inventing — a new architecture. Chapter 23 closes with what is likely to
+    remain true even as specific architectures keep changing.
+  </p>
+
+  <!-- ================= CH 20 ================= -->
+  <section id="ch-20" aria-labelledby="ch-20-title">
+    <h2 id="ch-20-title">Chapter 20. Comparative Architecture Analysis</h2>
+    <span class="era-badge">Cross-cutting synthesis</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 54–58.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      The book's thesis — every successful architecture relaxes one constraint while introducing
+      another — only becomes actionable once the trade-offs are laid side by side. Chapter 20 is the
+      source's own synthesis: explicit tables comparing path length, compute, memory, parallelism,
+      and inductive bias across every major sequence-mixing family, plus a direct mapping from
+      "which constraint is binding in your situation" to "which architecture family is the best fit
+      and why." This is the single most reusable content in the entire monograph for design
+      discussions and comparative questions.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>"Best architecture" is not a fixed answer — it is a function of which constraint (compute,
+        serving memory/latency, context length, updateability, reasoning depth, modality) actually
+        binds your situation.</li>
+      <li>Path length — how many computation steps information must travel between two positions —
+        is a clean way to compare n-grams, RNNs, LSTMs, attention, and SSMs on the same axis.</li>
+      <li>Training FLOPs/layer and serving-time memory (state or KV cache) are separate axes that do
+        not always move together — a model can be cheap to train but expensive to serve, or vice
+        versa.</li>
+      <li>The dense Transformer remains the broadly strongest general-purpose default; MoE buys
+        capacity, SSMs buy bounded state, RAG buys updateability and provenance, and verifier-guided
+        generation buys reasoning depth — each at a distinct, named cost.</li>
+      <li>Current-model architecture crosswalks (which model uses which attention variant, position
+        scheme, or MoE) are dated snapshots, not durable facts — re-verify before repeating any
+        specific model's configuration as current.</li>
+    </ul>
+
+    <h3 id="ch-20-unified">Unified sequence-mixing comparison</h3>
+    <p>
+      The table below puts every sequence-mixing mechanism introduced across Chapters 2–16 on the
+      same set of axes. "Path length" is the number of computation steps information must travel to
+      connect two arbitrary positions in the sequence — shorter is generally better for learning
+      long-range dependencies, because a shorter path means fewer opportunities for a gradient or a
+      signal to decay or get overwritten.
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 20.1. Unified sequence-mixing mechanism comparison.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Mechanism</th><th scope="col">Path length</th><th scope="col">Training FLOPs/layer</th>
+              <th scope="col">Serving-time memory</th><th scope="col">Train-time parallelism</th>
+              <th scope="col">Inductive bias</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row"><em>n</em>-gram (Ch. 2)</th><td>Fixed, short window (context order)</td><td>Table lookup — negligible</td><td>Count table, grows with vocabulary^order</td><td>Trivial — no training loop</td><td>Exact local co-occurrence only; no generalization beyond seen counts</td></tr>
+            <tr><th scope="row">RNN / LSTM (Ch. 5–6)</th><td>O(<em>n</em>) — one step per position, serial</td><td>Low per step, but strictly sequential</td><td>Fixed-size hidden state</td><td>None — recurrence is inherently serial</td><td>Recency-weighted sequential state; gating helps but does not remove serial dependence</td></tr>
+            <tr><th scope="row">Attention / Transformer (Ch. 8–9)</th><td>O(1) — any two positions connect directly</td><td>O(<em>n</em>²) in sequence length per layer</td><td>KV cache — grows linearly with sequence length</td><td>Full — all positions computed simultaneously</td><td>Content-addressed lookup over the whole context; no built-in recency bias</td></tr>
+            <tr><th scope="row">SSM / Mamba (Ch. 16)</th><td>O(1) in principle via the recurrent state, but state is fixed-size (lossy for pinpoint recall)</td><td>O(<em>n</em>) — linear in sequence length</td><td>Fixed-size recurrent state — does not grow with sequence length</td><td>Full, via convolution (S4) or parallel associative scan (Mamba)</td><td>Smooth, decaying-relevance compression of history; weaker at exact arbitrary-position recall</td></tr>
+            <tr><th scope="row">Sparse MoE feed-forward (Ch. 14)</th><td>Unchanged from the attention layers it augments (MoE replaces the feed-forward block, not attention)</td><td>O(active experts) rather than O(total experts) — sub-linear in total parameters</td><td>Total parameter storage scales with expert count; active compute does not</td><td>Full, plus an all-to-all communication step across expert-parallel devices</td><td>Specialization by routed subspace, contingent on load-balanced training</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <h3 id="ch-20-constraint">Binding constraint → best architecture</h3>
+    <p>
+      Rather than asking "which architecture is best," Chapter 20 asks "which constraint is
+      binding, and which architecture family relaxes <em>that specific one</em> at an acceptable
+      new cost."
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 20.2. Binding constraint → best-of-class architecture.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Binding constraint</th><th scope="col">Symptom</th><th scope="col">Best-fit family</th><th scope="col">Why</th><th scope="col">New trade-off introduced</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Raw training/serving compute budget</th><td>Cannot afford more active FLOPs per token</td><td>Dense Transformer with modern-block efficiencies (Ch. 13)</td><td>Strongest general-purpose quality per active FLOP, well-understood scaling behavior</td><td>Still pays full quadratic attention cost at long context</td></tr>
+            <tr><th scope="row">Total model capacity, fixed active compute</th><td>Need more knowledge/capacity without raising per-token cost</td><td>Mixture-of-Experts (Ch. 14)</td><td>Decouples total parameters from active-per-token compute</td><td>Routing/load-balancing complexity, all-to-all communication cost</td></tr>
+            <tr><th scope="row">Very long context, bounded serving memory</th><td>KV cache would exceed available memory/bandwidth</td><td>State-space models (Ch. 16), or long-context serving techniques (Ch. 15)</td><td>Fixed-size state (SSM) or exact-but-IO-efficient attention plus paging (Ch. 15) bound memory growth</td><td>SSM: weaker pinpoint recall. Serving techniques: still ultimately linear cache growth per token</td></tr>
+            <tr><th scope="row">Facts must be updated or cited without retraining</th><td>Knowledge changes faster than a retraining cadence allows</td><td>Retrieval-Augmented Generation (Ch. 17)</td><td>Moves mutable facts into an updatable, citable external index</td><td>Retrieval-quality and context-placement failure modes (Ch. 17)</td></tr>
+            <tr><th scope="row">Non-text input (image/audio/video)</th><td>Task requires reasoning over a non-text modality</td><td>Multimodal fusion architectures (Ch. 18)</td><td>Converts non-text signals into tokens/features a Transformer can consume</td><td>Added encoder/projector complexity; video token-cost multiplier</td></tr>
+            <tr><th scope="row">Multi-step reasoning depth</th><td>Single forward pass under-performs on hard multi-step problems</td><td>Verifier-guided test-time compute (Ch. 19)</td><td>Spends extra, controllable inference compute via traces/search rather than a bigger single pass</td><td>Higher, variable inference latency and cost per query</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <aside class="callout" data-type="insight">
+      <p class="callout-label">Key insight</p>
+      <div class="callout-body">
+        <p>
+          Note what is <em>not</em> in this table: there is no row where the answer is "replace the
+          Transformer entirely." Every best-fit family above is either a modification layered onto a
+          Transformer (MoE, long-context techniques, multimodal fusion, test-time compute) or a
+          genuine alternative core (SSM) that is workload-dependent rather than a universal upgrade.
+        </p>
+      </div>
+    </aside>
+
+    <h3 id="ch-20-crosswalk">Beyond the book: current model crosswalk</h3>
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book — dated snapshot, verify before reuse</p>
+      <div class="callout-body">
+        <p>
+          The table below is a dated, source-specific snapshot of publicly documented architecture
+          choices, not a general or current-forever reference. Closed frontier systems (GPT-4 and
+          later, Claude, Gemini) generally do not disclose enough detail to state their internals as
+          fact — those rows are marked "undisclosed" rather than guessed. See the dated primary
+          reports linked in the <a href="#sources-ch-20">Chapter 20 sources</a>.
+        </p>
+      </div>
+    </aside>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 20.3. (Research-augmented) Open architecture crosswalk — dated snapshot.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Model family</th><th scope="col">Attention variant</th><th scope="col">Positional scheme</th><th scope="col">MoE?</th><th scope="col">Source</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">GPT-1 / GPT-2 (2018–2019)</th><td>Dense multi-head</td><td>Learned absolute</td><td>No</td><td>Radford et al., OpenAI</td></tr>
+            <tr><th scope="row">GPT-3 (2020)</th><td>Dense multi-head</td><td>Learned absolute</td><td>No</td><td>Brown et al. (2020), <a href="https://arxiv.org/abs/2005.14165">arxiv.org/abs/2005.14165</a></td></tr>
+            <tr><th scope="row">GPT-4 and later closed OpenAI models</th><td>Undisclosed</td><td>Undisclosed</td><td>Undisclosed</td><td>OpenAI (2023), <a href="https://arxiv.org/abs/2303.08774">arxiv.org/abs/2303.08774</a> — architecture details not published</td></tr>
+            <tr><th scope="row">Mistral 7B (2023)</th><td>Sliding-window attention</td><td>RoPE</td><td>No</td><td>Mistral AI (2023), <a href="https://arxiv.org/abs/2310.06825">arxiv.org/abs/2310.06825</a></td></tr>
+            <tr><th scope="row">Mixtral 8x7B (2024)</th><td>Dense multi-head per expert</td><td>RoPE</td><td>Yes — top-2 of 8</td><td>Mistral AI (2024), <a href="https://arxiv.org/abs/2401.04088">arxiv.org/abs/2401.04088</a></td></tr>
+            <tr><th scope="row">DeepSeek-V3 (2024)</th><td>Multi-Head Latent Attention (MLA)</td><td>RoPE (decoupled for MLA)</td><td>Yes — fine-grained routed + shared experts</td><td>DeepSeek-AI (2024), <a href="https://arxiv.org/abs/2412.19437">arxiv.org/abs/2412.19437</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why path length alone does not decide the winner</summary>
+      <p>
+        Attention's O(1) path length looks strictly better than an SSM's fixed-size-state
+        compression on paper, but path length only measures how many computation steps separate two
+        positions — it says nothing about how much information can actually be carried along that
+        path once you fix a memory budget. An SSM's fixed state is a real information bottleneck
+        that attention's growing KV cache does not have; but that same growing cache is exactly why
+        attention's serving memory is unbounded in a way an SSM's is not. The two axes (path length,
+        memory growth) must be read together, which is precisely why Chapter 20 presents a
+        multi-column table instead of a single ranked list.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-20">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why does the chapter refuse to name a single "best architecture"?
+          <details><summary>Reveal answer</summary>Because different architectures relax different
+          constraints at different costs; which one is "best" depends entirely on which constraint
+          (compute, serving memory, context length, updateability, reasoning depth, modality) is
+          actually binding in a given situation.</details>
+        </li>
+        <li>According to Table 20.1, which mechanism has the shortest path length, and what does it
+          pay for that?
+          <details><summary>Reveal answer</summary>Attention/Transformer has O(1) path length — any
+          two positions connect directly — but pays with O(n²) training compute per layer and a KV
+          cache that grows linearly with sequence length.</details>
+        </li>
+        <li>Per Table 20.2, if the binding constraint is "facts change faster than we can retrain,"
+          what is the best-fit family and what new problem does it introduce?
+          <details><summary>Reveal answer</summary>Retrieval-Augmented Generation; it introduces
+          retrieval-quality and context-placement failure modes (retrieval misses, chunk boundaries,
+          "lost in the middle," stale indexes, citation mismatches) as described in Chapter 17.</details>
+        </li>
+        <li>Why are GPT-4 and later closed OpenAI models listed as "undisclosed" in Table 20.3 rather
+          than given a specific attention variant?
+          <details><summary>Reveal answer</summary>Because the publisher has not disclosed enough
+          architectural detail to state it as fact; guessing or inferring specifics would misrepresent
+          an undocumented system as a documented one.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-20"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading" id="sources-ch-20">Sources</p>
+    <ol class="sources-list">
+      <li>Brown et al., <cite>Language Models are Few-Shot Learners (GPT-3)</cite> (2020). <a href="https://arxiv.org/abs/2005.14165">arxiv.org/abs/2005.14165</a></li>
+      <li>OpenAI, <cite>GPT-4 Technical Report</cite> (2023). <a href="https://arxiv.org/abs/2303.08774">arxiv.org/abs/2303.08774</a></li>
+      <li>Mistral AI, <cite>Mistral 7B</cite> (2023). <a href="https://arxiv.org/abs/2310.06825">arxiv.org/abs/2310.06825</a></li>
+      <li>Mistral AI, <cite>Mixtral of Experts</cite> (2024). <a href="https://arxiv.org/abs/2401.04088">arxiv.org/abs/2401.04088</a></li>
+      <li>DeepSeek-AI, <cite>DeepSeek-V3 Technical Report</cite> (2024). <a href="https://arxiv.org/abs/2412.19437">arxiv.org/abs/2412.19437</a></li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 21 ================= -->
+  <section id="ch-21" aria-labelledby="ch-21-title">
+    <h2 id="ch-21-title">Chapter 21. Open Problems &amp; Tensions</h2>
+    <span class="era-badge">Open questions</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 58–59.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Chapters 1–20 could easily be read as a triumphant, resolved march toward better architectures.
+      Chapter 21 is a deliberate corrective: it names five tensions that remain genuinely
+      unresolved in the field, not settled by any architecture covered so far. Treating these as open
+      rather than solved is itself part of the book's argument — a reader who can name what is
+      <em>not</em> known understands the field better than one who can only recite what is.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li><strong>Memory vs. compute</strong> — unbounded KV caches and bounded SSM states are both
+        real, live design points; neither dominates the other across all workloads.</li>
+      <li><strong>Reasoning vs. pattern matching</strong> — whether chain-of-thought reflects genuine
+        multi-step reasoning or highly fluent pattern completion is an open empirical question with
+        mixed evidence on both sides.</li>
+      <li><strong>Sparsity vs. stability</strong> — MoE's capacity gains are real, but routing
+        instability and load imbalance remain recurring, not fully solved, failure modes.</li>
+      <li><strong>Generalization vs. memorization</strong> — models sometimes reproduce training data
+        near-verbatim; cleanly separating "learned a generalizable skill" from "memorized and
+        retrieved" remains unresolved and matters for both capability claims and copyright/privacy.</li>
+      <li><strong>Alignment vs. architecture</strong> — RLHF/DPO/GRPO shape behavior post hoc on a
+        fixed architecture; whether robust alignment requires architectural changes (built-in
+        verifiers, interpretability hooks) rather than post-training alone is an open design question.</li>
+    </ul>
+
+    <aside class="callout" data-type="misconception" id="ch-21-memory">
+      <p class="callout-label">Open tension: memory vs. compute</p>
+      <div class="callout-body">
+        <h4>What's unresolved</h4>
+        <p>
+          A Transformer's KV cache gives exact, unbounded-length recall at the cost of ever-growing
+          memory; an SSM's fixed state bounds memory at the cost of lossy compression of history.
+          Neither is a strict improvement on the other — the "right" choice is workload-dependent, and
+          no architecture in this book eliminates the trade-off entirely. Hybrid attention/SSM designs
+          are an active attempt to get both, not a proof that the tension is resolved.
+        </p>
+      </div>
+    </aside>
+
+    <aside class="callout" data-type="misconception" id="ch-21-reasoning">
+      <p class="callout-label">Open tension: reasoning vs. pattern matching</p>
+      <div class="callout-body">
+        <h4>What's unresolved</h4>
+        <p>
+          Chain-of-thought reliably improves accuracy on many multi-step tasks, but <em>why</em> is
+          contested: it may reflect a form of genuine intermediate computation the model performs
+          using its own generated tokens as working memory, or it may reflect very sophisticated
+          pattern completion that happens to track valid reasoning steps on the distributions tested.
+          Evidence exists on both sides, and the source explicitly declines to declare this settled.
+        </p>
+      </div>
+    </aside>
+
+    <aside class="callout" data-type="misconception" id="ch-21-sparsity">
+      <p class="callout-label">Open tension: sparsity vs. stability</p>
+      <div class="callout-body">
+        <h4>What's unresolved</h4>
+        <p>
+          Load-balancing losses and auxiliary-loss-free schemes (Ch. 14) reduce, but do not eliminate,
+          MoE routing instability — expert collapse, capacity-related token dropping, and
+          training-run-to-training-run routing variance remain recurring practical failure modes
+          reported across MoE systems, not a fully closed problem.
+        </p>
+      </div>
+    </aside>
+
+    <aside class="callout" data-type="misconception" id="ch-21-generalization">
+      <p class="callout-label">Open tension: generalization vs. memorization</p>
+      <div class="callout-body">
+        <h4>What's unresolved</h4>
+        <p>
+          Large models can reproduce portions of training data verbatim under some conditions,
+          which complicates any claim that a given capability reflects generalized skill rather than
+          retrieval of memorized content. This matters for capability evaluation (is a benchmark score
+          measuring reasoning or memorized answers?) and for copyright/privacy questions about training
+          data — neither of which this book resolves.
+        </p>
+      </div>
+    </aside>
+
+    <aside class="callout" data-type="misconception" id="ch-21-alignment">
+      <p class="callout-label">Open tension: alignment vs. architecture</p>
+      <div class="callout-body">
+        <h4>What's unresolved</h4>
+        <p>
+          RLHF, DPO, and GRPO (Chapter 19's training-system innovations, and their alignment
+          analogues) adjust a model's behavior after its architecture is fixed. Whether this is
+          sufficient for robust, hard-to-circumvent alignment, or whether it requires architectural
+          changes — built-in verifiers, mechanistic-interpretability hooks, or other structural
+          constraints — is an open design question the field has not settled.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why "open" is a specific claim, not a hedge</summary>
+      <p>
+        Calling a tension "open" is a stronger claim than "not yet perfect" — it means the field lacks
+        consensus evidence pointing to one resolution, not merely that current systems fall short of an
+        agreed-upon ideal. For each tension above, credible researchers hold different positions
+        supported by different evidence; treating any one of them as settled in either direction would
+        overstate what is actually known.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-21">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why doesn't a hybrid attention/SSM design "resolve" the memory-vs-compute tension?
+          <details><summary>Reveal answer</summary>It is an attempt to capture benefits of both
+          approaches in one system, but it does not eliminate the underlying trade-off between exact
+          unbounded recall and bounded, lossy state — it manages the trade-off differently, rather than
+          removing it.</details>
+        </li>
+        <li>What specific evidence problem makes "reasoning vs. pattern matching" hard to settle?
+          <details><summary>Reveal answer</summary>Chain-of-thought's accuracy gains are consistent
+          with both genuine intermediate computation and highly sophisticated pattern completion that
+          happens to track valid steps on tested distributions — the same empirical result (higher
+          accuracy) is compatible with both explanations.</details>
+        </li>
+        <li>Why does generalization-vs-memorization matter beyond pure capability measurement?
+          <details><summary>Reveal answer</summary>Because verbatim reproduction of training data also
+          raises copyright and privacy questions distinct from capability evaluation — the same
+          underlying phenomenon (memorization) has legal/ethical stakes as well as measurement stakes.</details>
+        </li>
+        <li>What is the open design question in "alignment vs. architecture"?
+          <details><summary>Reveal answer</summary>Whether post-hoc training methods (RLHF, DPO, GRPO)
+          applied to a fixed architecture are sufficient for robust alignment, or whether robust
+          alignment instead requires structural/architectural changes such as built-in verifiers or
+          interpretability hooks.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-21"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Framing and tensions as presented in <cite>LLM Architecture Evolution</cite>, pp. 58–59. No
+        external citation is required for these framing claims; see Chapters 14, 16, and 19 in this
+        site for the underlying mechanism citations each tension references.</li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 22 ================= -->
+  <section id="ch-22" aria-labelledby="ch-22-title">
+    <h2 id="ch-22-title">Chapter 22. How to Invent New Architectures</h2>
+    <span class="era-badge">Practitioner's guide</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 59–60.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Chapters 1–21 are a history lesson unless a reader can turn the constraint-reallocation lens
+      into something generative. Chapter 22 is the book's practical checklist: a worksheet for
+      identifying which constraint you are trying to relax, a set of evaluation questions to ask
+      before believing a new architecture is actually an improvement, and a catalog of the failure
+      patterns that most "new architecture" claims fall into.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>Start from the constraint, not the mechanism: name precisely what is currently binding
+        before designing something to relax it.</li>
+      <li>Every proposed relaxation introduces a new trade-off — if you cannot name it, you likely
+        have not stress-tested the idea enough yet.</li>
+      <li>A compute-matched, ablated comparison against a strong existing baseline is the minimum bar
+        for a credible claim of improvement.</li>
+      <li>Common failure patterns include: working only at toy scale, ignoring serving cost, skipping
+        a compute-matched baseline, and relaxing a constraint nobody was actually bound by.</li>
+      <li>Good architecture research is tested at more than one scale and considers systems co-design
+        (can existing hardware/software actually run this efficiently?), not just an isolated
+        accuracy number.</li>
+    </ul>
+
+    <h3 id="ch-22-worksheet">The constraint worksheet</h3>
+    <p>
+      This table is deliberately structured as a worksheet rather than a historical record: each row
+      names a constraint, how to measure whether it is binding, which architecture from this book
+      currently addresses it best, and the new trade-off that any further relaxation would need to
+      manage. Use it to locate where a new idea would actually sit, before evaluating whether it is
+      worth pursuing.
+    </p>
+
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 22.1. Constraint, metric, favorable architecture, new trade-off — a decision worksheet.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Constraint</th><th scope="col">Metric to check if it's binding</th><th scope="col">Currently favorable architecture</th><th scope="col">New trade-off it introduced</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Fixed context window</th><td>Task inputs regularly exceed the model's trained/served context length</td><td>Long-context serving techniques (Ch. 15), SSM (Ch. 16), or RAG (Ch. 17)</td><td>Serving-cost, recall-fidelity, or retrieval-quality trade-off respectively</td></tr>
+            <tr><th scope="row">Serving memory per request</th><td>KV cache size limits concurrent request batch size</td><td>GQA/MLA (Ch. 13), PagedAttention (Ch. 15), SSM (Ch. 16)</td><td>Reduced per-head expressivity, extra reconstruction compute, or lossy fixed-size state</td></tr>
+            <tr><th scope="row">Total model capacity at fixed active compute</th><td>Model under-fits available data/task diversity at current active-parameter budget</td><td>Mixture-of-Experts (Ch. 14)</td><td>Routing/load-balancing complexity and all-to-all communication cost</td></tr>
+            <tr><th scope="row">Knowledge freshness / provenance</th><td>Facts change faster than retraining cadence; no citation trail exists</td><td>Retrieval-Augmented Generation (Ch. 17)</td><td>Retrieval-quality and context-placement failure modes</td></tr>
+            <tr><th scope="row">Multi-step reasoning depth</th><td>Single-pass accuracy plateaus on tasks requiring several dependent steps</td><td>Verifier-guided test-time compute (Ch. 19)</td><td>Higher, more variable inference latency and cost per query</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <h3 id="ch-22-questions">Evaluation questions</h3>
+    <ol class="worksheet-list">
+      <li><strong>What exactly got easier?</strong> Name the specific constraint relaxed, in measurable
+        terms — not "it's better," but "it reduces KV cache bytes per token by X" or "it reduces path
+        length from O(n) to O(1)."</li>
+      <li><strong>What got harder?</strong> Every relaxation in this book introduced a new cost —
+        demand the same specificity for the new trade-off as for the claimed gain.</li>
+      <li><strong>Is the win at a scale that matters?</strong> An improvement that only appears at a
+        toy model size or dataset size may not survive to production scale — check whether the
+        comparison was run at a scale relevant to real deployment.</li>
+      <li><strong>Does it hold under a compute-matched, ablated comparison?</strong> Comparing a new
+        architecture at more total training compute than its baseline is not a fair test — insist on
+        equal compute (or an explicit, justified compute-scaling argument) and systematic ablations.</li>
+      <li><strong>What is the systems cost?</strong> Can current hardware and software actually run
+        this efficiently, or does the idea require kernels, communication patterns, or memory access
+        patterns that do not yet exist at production quality?</li>
+    </ol>
+
+    <h3 id="ch-22-failures">Common failure patterns</h3>
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 22.2. Common "new architecture" failure patterns.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Failure pattern</th><th scope="col">What it looks like</th><th scope="col">Why it fails to convince</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Toy-scale-only validation</th><td>Strong results on a small model/dataset with no scaling curve shown</td><td>Many effects reverse or vanish at larger scale; toy-scale wins are not evidence of production-scale wins</td></tr>
+            <tr><th scope="row">Ignoring serving cost</th><td>Reports training-time quality gains without discussing inference latency/memory</td><td>A model that is better but too expensive or slow to serve is not a practical improvement</td></tr>
+            <tr><th scope="row">No compute-matched baseline</th><td>Compares a new architecture at more total FLOPs than the baseline it "beats"</td><td>The gain may be entirely attributable to spending more compute, not to the architectural change itself</td></tr>
+            <tr><th scope="row">Solving an unbound constraint</th><td>Optimizes a metric that was not actually limiting anyone's real deployment</td><td>Even a genuine improvement on that metric will not translate into a noticeable real-world benefit</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <aside class="callout" data-type="insight">
+      <p class="callout-label">Key insight</p>
+      <div class="callout-body">
+        <p>
+          Good architecture research is recognizable less by its accuracy numbers than by its
+          honesty about trade-offs: it reports the new cost it introduced as clearly as the constraint
+          it relaxed, tests at more than one scale, and considers whether existing hardware/software can
+          actually realize the claimed benefit — the same standard this book applies to RMSNorm, MoE,
+          SSMs, and every other architecture it covers.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: how this worksheet differs from Chapter 20's tables</summary>
+      <p>
+        Chapter 20's tables are backward-looking: they compare architectures that already exist and
+        have been evaluated. This chapter's worksheet is forward-looking: it is meant to be filled in
+        <em>before</em> you know whether a new idea works, to force explicit statement of the
+        constraint you are targeting and the trade-off you expect to introduce, so that later
+        evaluation (against Chapter 22's five questions) has something concrete to check against.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-22">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why does the chapter insist on starting from "which constraint is binding" rather than
+          from a mechanism you find interesting?
+          <details><summary>Reveal answer</summary>Because relaxing a constraint that isn't actually
+          binding produces a technically real but practically useless improvement — the worksheet
+          forces you to check relevance before investing in a mechanism.</details>
+        </li>
+        <li>What specifically is wrong with comparing a new architecture to a baseline trained with
+          less total compute?
+          <details><summary>Reveal answer</summary>The observed improvement may be attributable
+          entirely to the extra compute spent, not to the architectural change — without a
+          compute-matched comparison, you cannot isolate the architecture's actual contribution.</details>
+        </li>
+        <li>Name two of the five evaluation questions from §22's checklist.
+          <details><summary>Reveal answer</summary>Any two of: what exactly got easier; what got
+          harder; is the win at a scale that matters; does it hold under a compute-matched, ablated
+          comparison; what is the systems cost.</details>
+        </li>
+        <li>How does Table 22.1 differ in purpose from Chapter 20's comparison tables?
+          <details><summary>Reveal answer</summary>Table 22.1 is a forward-looking worksheet meant
+          to be filled in before evaluating a new idea, to name the targeted constraint and expected
+          trade-off; Chapter 20's tables are a backward-looking comparison of architectures that
+          already exist and have already been evaluated.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-22"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Constraint table, evaluation questions, and failure patterns as presented in
+        <cite>LLM Architecture Evolution</cite>, pp. 59–60. No external citation required for this
+        chapter's framing content.</li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 23 ================= -->
+  <section id="ch-23" aria-labelledby="ch-23-title">
+    <h2 id="ch-23-title">Chapter 23. Conclusion</h2>
+    <span class="era-badge">Closing synthesis</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 61–62.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      The conclusion closes the loop the preface opened: every chapter has been a demonstration, not
+      just an assertion, of the constraint-reallocation lens. Chapter 23 recaps the historical arc,
+      names the ideas likely to outlast any single architecture's popularity, and restates the book's
+      final message — choose architecture by identifying the binding constraint, not by following
+      fashion.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>The arc from <em>n</em>-grams to reasoning systems is one continuous story of constraint
+        reallocation, not a series of unrelated breakthroughs.</li>
+      <li>Durable ideas — chain-rule factorization and cross-entropy, content-addressed attention,
+        residual/gradient-path design, empirical scaling laws, and explicit test-time compute as a
+        scaling axis — are likely to persist even as specific architectures churn.</li>
+      <li>Likely next directions (hybrid attention/SSM designs, continued MoE scaling, tighter
+        multimodal fusion, more inference-time search) are explicitly framed as speculative and
+        fast-aging, not settled predictions.</li>
+      <li>The final, durable message: identify the binding constraint first, then choose (or design)
+        an architecture that relaxes it at an acceptable, explicitly-named new cost.</li>
+    </ul>
+
+    <h3 id="ch-23-arc">The historical arc</h3>
+    <p>
+      Read end to end, this site has traced one continuous argument: n-grams (Ch. 2) relax nothing
+      about sparsity and hit a hard ceiling; neural probabilistic language models (Ch. 3) and word
+      embeddings (Ch. 4) relax sparsity via shared, distributed representations but keep a bounded
+      context window; RNNs (Ch. 5) relax the bounded-window limit but introduce vanishing/exploding
+      gradients and serial computation; LSTMs/GRUs (Ch. 6) relax the gradient problem with gated
+      near-additive paths; sequence-to-sequence models (Ch. 7) expose a fixed-vector encoder
+      bottleneck that attention (Ch. 8) relaxes via direct, differentiable routing; the Transformer
+      (Ch. 9) removes recurrence entirely and trades it for quadratic attention cost; decoder-only
+      pretraining and scaling (Ch. 10–12) unify generation and self-supervision and turn scale itself
+      into a lever; Chapters 13–19 then each relax one specific cost of the resulting large
+      Transformer — training stability, active-compute-vs-capacity, context length, serving memory,
+      knowledge freshness, modality, and reasoning depth — while introducing a new, named trade-off
+      each time.
+    </p>
+
+    <h3 id="ch-23-durable">Durable ideas</h3>
+    <ul class="key-takeaways">
+      <li><strong>Chain-rule factorization + cross-entropy</strong> (Ch. 1) — the mathematical
+        foundation of every architecture in this book remains the same regardless of what computes
+        the conditional probabilities.</li>
+      <li><strong>Content-addressed attention</strong> (Ch. 8–9) — letting a model directly select
+        relevant prior information, rather than compressing it through a fixed bottleneck, recurs in
+        RAG's retrieval, multimodal cross-attention, and verifier-guided search alike.</li>
+      <li><strong>Residual/gradient-path design</strong> (Ch. 9, 13) — the specific insight that deep
+        networks train reliably when there is a near-identity path for gradients to flow along
+        persists across every architecture family covered, including SSMs' own gating mechanisms.</li>
+      <li><strong>Empirical scaling laws</strong> (Ch. 12) — treating loss as a measurable, fittable
+        function of parameters/data/compute reframed architecture research as an empirical, not purely
+        theoretical, discipline.</li>
+      <li><strong>Test-time compute as a scaling axis</strong> (Ch. 19) — the recognition that
+        inference-time computation is a distinct, controllable lever from model size is likely to
+        outlast any specific verifier or search technique built on top of it.</li>
+    </ul>
+
+    <h3 id="ch-23-next">Likely next directions</h3>
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book — explicitly speculative</p>
+      <div class="callout-body">
+        <p>
+          Continued interest in hybrid attention/SSM layers, further MoE scaling and routing
+          refinement, tighter (rather than adapter-based) multimodal fusion, and more sophisticated
+          inference-time search are plausible near-term directions based on current research activity —
+          but this is <strong>interpretation, and will age quickly</strong>. Prefer checking primary
+          technical reports from active publishers (e.g., DeepSeek, Mistral, Meta, Alibaba/Qwen) over
+          repeating this paragraph as a lasting forecast. For concrete, dated examples, see
+          <a href="https://arxiv.org/abs/2312.00752">Gu &amp; Dao (2023)</a> on Mamba,
+          <a href="https://arxiv.org/abs/2412.19437">DeepSeek-AI (2024)</a> on MoE/MLA, and
+          <a href="https://arxiv.org/abs/2412.16720">OpenAI (2024)</a> on reasoning systems.
+        </p>
+      </div>
+    </aside>
+
+    <aside class="callout" data-type="insight">
+      <p class="callout-label">The final message</p>
+      <div class="callout-body">
+        <p>
+          Every architecture in this book is a constraint-reallocation decision, not a universal
+          improvement. The practical lesson for a reader leaving this site is not "use architecture X"
+          but "identify which constraint actually binds your problem, and choose — or design — the
+          architecture that relaxes precisely that one, while being honest about the new trade-off it
+          introduces." That is the question Chapter 22's worksheet operationalizes, and it is the
+          question every chapter in this book has answered for one specific historical case.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: what this framing deliberately does not claim</summary>
+      <p>
+        The constraint-reallocation lens is a useful organizing structure for teaching and design
+        discussion; it is not a claim that architecture progress is fully explained by constraints
+        alone, or that every historical adoption decision was a purely rational trade-off analysis.
+        Path dependence, hardware availability, publication incentives, and simple trial-and-error all
+        played a role in which architectures became dominant when. The lens is valuable because it is
+        <em>actionable</em> for evaluating or designing the next idea, not because it is a complete
+        causal history of the field.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-23">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>State the book's constraint-reallocation thesis in one sentence.
+          <details><summary>Reveal answer</summary>Every successful language-model architecture
+          relaxes one specific constraint (such as sparsity, gradient flow, sequential compute, memory,
+          or bandwidth) while introducing a new one, rather than solving language modeling outright.</details>
+        </li>
+        <li>Name two "durable ideas" the conclusion argues are likely to outlast specific
+          architectures.
+          <details><summary>Reveal answer</summary>Any two of: chain-rule factorization and
+          cross-entropy as the learning objective; content-addressed attention; residual/gradient-path
+          design; empirical scaling laws; test-time compute as a distinct scaling axis.</details>
+        </li>
+        <li>Why are the conclusion's "likely next directions" explicitly marked as speculative rather
+          than presented as fact?
+          <details><summary>Reveal answer</summary>Because predictions about which future
+          architectures will dominate are interpretation, not settled fact, and this specific area of
+          the field changes especially quickly — treating them as speculative avoids overstating
+          confidence in a fast-moving prediction.</details>
+        </li>
+        <li>What is the book's final practical recommendation for choosing an architecture?
+          <details><summary>Reveal answer</summary>Identify which constraint is actually binding in
+          your situation first, then choose or design an architecture that relaxes precisely that
+          constraint, while explicitly naming the new trade-off it introduces — rather than choosing an
+          architecture by popularity or trend.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-23"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Historical arc and closing synthesis as presented in <cite>LLM Architecture Evolution</cite>,
+        pp. 61–62. "Likely next directions" is explicitly speculative; see individual chapter Sources
+        lists in Parts 4–5 for the dated primary sources behind each named direction.</li>
+    </ol>
+  </section>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="part-5-frontiers.html">← Part 5: Frontiers</a>
+    <a href="index.html">Home →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>Content adapted from <cite>LLM Architecture Evolution.pdf</cite> (78 pp.), supplemented with
+    dated external sources where marked "Beyond the book." Mechanism descriptions are treated as
+    stable; current-model and benchmark comparisons are explicitly caveated as fast-aging.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Part 6 of 6 · Chapters 20–23 · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

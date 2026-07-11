@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appendices: Math, Reading Path &amp; Worked Examples · LLM Architecture Evolution</title>
+<meta name="description" content="Mathematical preliminaries, an annotated primary-source reading path, and worked numerical examples.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html">Part 4</a></li>
+        <li><a href="part-5-frontiers.html">Part 5</a></li>
+        <li><a href="part-6-synthesis.html">Part 6</a></li>
+        <li><a href="glossary.html">Glossary</a></li>
+        <li><a href="appendices.html" aria-current="page">Appendices</a></li>
+        <li><a href="code-appendix.html">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Reference</div>
+  </div>
+</header>
+
+<details class="toc-mobile">
+  <summary>On this page</summary>
+  <ol>
+    <li><a href="#appx-a">Appendix A. Mathematical preliminaries</a></li>
+    <li><a href="#appx-b">Appendix B. Annotated primary-source reading path</a></li>
+    <li><a href="#appx-d">Appendix D. Worked numerical examples</a></li>
+  </ol>
+</details>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="On this page">
+  <p class="toc-heading">On this page</p>
+  <ol>
+    <li><a href="#appx-a">Appendix A. Mathematical preliminaries</a>
+      <ol>
+        <li><a href="#appx-a-notation">Notation</a></li>
+        <li><a href="#appx-a-probability">Chain-rule factorization &amp; cross-entropy</a></li>
+        <li><a href="#appx-a-softmax">Softmax, temperature &amp; sampling</a></li>
+        <li><a href="#appx-a-gradients">Gradients, Jacobians &amp; the residual argument</a></li>
+        <li><a href="#appx-a-complexity">Complexity notation</a></li>
+      </ol>
+    </li>
+    <li><a href="#appx-b">Appendix B. Annotated primary-source reading path</a>
+      <ol>
+        <li><a href="#appx-b-stage1">Stage 1 — Attention &amp; the Transformer</a></li>
+        <li><a href="#appx-b-stage2">Stage 2 — Scaling &amp; the modern block</a></li>
+        <li><a href="#appx-b-stage3">Stage 3 — Efficiency: MoE &amp; long context</a></li>
+        <li><a href="#appx-b-stage4">Stage 4 — Alternatives &amp; frontiers</a></li>
+        <li><a href="#appx-b-stage5">Stage 5 — Reasoning &amp; test-time compute</a></li>
+      </ol>
+    </li>
+    <li><a href="#appx-d">Appendix D. Worked numerical examples</a>
+      <ol>
+        <li><a href="#appx-d-flops">D.1 Training compute (the 6ND rule)</a></li>
+        <li><a href="#appx-d-kv">D.2 KV-cache bytes</a></li>
+        <li><a href="#appx-d-chinchilla">D.3 Chinchilla token allocation</a></li>
+        <li><a href="#appx-d-flash">D.4 FlashAttention memory traffic</a></li>
+        <li><a href="#appx-d-moe">D.5 MoE active vs. total parameters</a></li>
+        <li><a href="#appx-d-rope">D.6 RoPE extension arithmetic</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Appendices</nav>
+
+  <h1>Appendices: Mathematical Preliminaries, Reading Path &amp; Worked Examples</h1>
+  <p class="part-intro">
+    This page collects three reference tools rather than narrative chapters: Appendix A gives the
+    minimum notation and mathematics assumed throughout the site, restated in learner-friendly form;
+    Appendix B is an ordered, annotated path through the primary papers behind the book's claims —
+    read in this order rather than the order they were published; Appendix D works through the exact
+    arithmetic behind several numbers quoted informally elsewhere on the site, so you can reproduce
+    (and sanity-check) them yourself.
+  </p>
+
+  <!-- ================= APPENDIX A ================= -->
+  <section id="appx-a" aria-labelledby="appx-a-title">
+    <h2 id="appx-a-title">Appendix A. Mathematical Preliminaries</h2>
+    <span class="era-badge">Reference</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 62–64.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Every chapter on this site uses a small, fixed set of mathematical tools — chain-rule
+      probability, cross-entropy, softmax, and gradient/Jacobian reasoning about deep networks. This
+      appendix gathers them in one place with plain-language explanations, so a chapter can use a term
+      like "KL decomposition" or "Jacobian product" without re-deriving it, and so you have one page to
+      return to if a chapter's math moves faster than you'd like.
+    </p>
+
+    <h3 id="appx-a-notation">Notation</h3>
+    <figure class="comparison-table-wrap">
+      <figcaption>Table A.1. Notation used across this site.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead><tr><th scope="col">Symbol</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>x₁,…,x_T</code></th><td>A sequence of <em>T</em> tokens</td></tr>
+            <tr><th scope="row"><code>V</code></th><td>Vocabulary size (number of distinct tokens)</td></tr>
+            <tr><th scope="row"><code>d</code> (or <code>d_model</code>)</th><td>Model/embedding dimension — the width of the residual stream</td></tr>
+            <tr><th scope="row"><code>d_head</code></th><td>Per-head dimension in multi-head attention, typically <code>d / (number of heads)</code></td></tr>
+            <tr><th scope="row"><code>N</code></th><td>Number of model parameters</td></tr>
+            <tr><th scope="row"><code>D</code></th><td>Number of training tokens</td></tr>
+            <tr><th scope="row"><code>C</code></th><td>Training compute, typically in floating-point operations (FLOPs)</td></tr>
+            <tr><th scope="row"><code>P(·)</code></th><td>A probability distribution, generally over the next token given preceding context</td></tr>
+            <tr><th scope="row"><code>θ</code></th><td>The full set of trainable model parameters</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <h3 id="appx-a-probability">Chain-rule factorization &amp; cross-entropy</h3>
+    <p>
+      Every autoregressive language model factors the joint probability of a whole sequence into a
+      product of next-token conditionals, exactly, with no independence assumption:
+    </p>
+    <p class="equation">P(x₁,…,x_T) = P(x₁) · P(x₂ | x₁) · P(x₃ | x₁,x₂) ⋯ = ∏<sub>t=1</sub><sup>T</sup> P(xₜ | x&lt;ₜ)</p>
+    <p>
+      This is an identity from basic probability (repeated application of the definition of
+      conditional probability), true regardless of what computes each conditional — an <em>n</em>-gram
+      count table, an RNN's hidden state, or a Transformer's attention output. Training minimizes the
+      <strong>cross-entropy</strong> (equivalently, negative log-likelihood) between the model's
+      predicted distribution and the actual next token:
+    </p>
+    <p class="equation">L = − (1/T) ∑<sub>t=1</sub><sup>T</sup> log P<sub>θ</sub>(xₜ | x&lt;ₜ)</p>
+    <p>
+      Cross-entropy decomposes as the true distribution's own entropy plus the
+      <strong>KL divergence</strong> from the model's distribution to the true one — since the true
+      distribution's entropy is fixed and cannot be reduced by training, minimizing cross-entropy is
+      exactly equivalent to minimizing that KL divergence, i.e., making the model's predictions as
+      close as possible to the true conditional distribution. <strong>Perplexity</strong> is simply
+      <code>exp(cross-entropy)</code>, rescaling the loss into "effective number of equally-likely
+      choices" units that are easier to reason about intuitively than a raw log-loss number.
+    </p>
+
+    <h3 id="appx-a-softmax">Softmax, temperature &amp; sampling</h3>
+    <p>
+      Softmax converts a vector of real-valued scores ("logits") into a probability distribution:
+    </p>
+    <p class="equation">softmax(z)ᵢ = exp(zᵢ) / ∑ⱼ exp(zⱼ)</p>
+    <p>
+      <strong>Temperature</strong> <code>τ</code> divides the logits before softmax
+      (<code>softmax(z/τ)</code>): <code>τ &lt; 1</code> sharpens the distribution toward the highest-scoring
+      tokens (more deterministic, less diverse output); <code>τ &gt; 1</code> flattens it (more
+      diverse, more error-prone output). <strong>Top-<em>k</em></strong> sampling restricts sampling to
+      only the <em>k</em> highest-probability tokens before renormalizing; <strong>top-<em>p</em>
+      (nucleus)</strong> sampling instead keeps the smallest set of tokens whose cumulative probability
+      exceeds <em>p</em>, adapting the candidate set size to how confident the distribution is at each
+      step (a peaked distribution keeps very few tokens; a flat one keeps many).
+    </p>
+
+    <h3 id="appx-a-gradients">Gradients, Jacobians &amp; the residual argument</h3>
+    <p>
+      Backpropagation through a chain of layers multiplies each layer's local Jacobian (the matrix of
+      partial derivatives of its output with respect to its input) together via the chain rule. If
+      each Jacobian has eigenvalues consistently below 1, the product shrinks toward zero as more
+      layers are chained — <strong>vanishing gradients</strong>; if consistently above 1, the product
+      grows unboundedly — <strong>exploding gradients</strong>. A residual connection
+      <code>x → x + f(x)</code> has Jacobian <code>I + J_f</code> (identity plus the local Jacobian of
+      <code>f</code>) — because the identity component is always exactly 1 regardless of depth, chaining many
+      residual layers multiplies matrices that are each close to identity, which is structurally far
+      more resistant to vanishing/exploding than chaining arbitrary Jacobians directly, independent of
+      what <code>f</code> computes.
+    </p>
+
+    <h3 id="appx-a-complexity">Complexity notation</h3>
+    <p>
+      This site uses big-O notation to describe how a quantity scales with sequence length
+      <em>n</em> or another size parameter, not to give an exact operation count. "O(n²)" means the
+      quantity grows roughly proportionally to <em>n</em> squared for large <em>n</em> — doubling
+      <em>n</em> roughly quadruples the quantity — regardless of the constant multiplying it. This is
+      why, for example, self-attention's O(n²) training cost and a state-space model's O(n) cost
+      describe fundamentally different <em>scaling behavior</em>, even though for any one specific,
+      small <em>n</em> the actual wall-clock numbers depend on implementation details this notation
+      deliberately ignores.
+    </p>
+
+    <details class="going-deeper">
+      <summary>Going deeper: the full KL decomposition of cross-entropy</summary>
+      <p>
+        For true distribution <code>P</code> and model distribution <code>Q</code>, cross-entropy
+        <code>H(P, Q) = −∑ P(x) log Q(x)</code> decomposes exactly as
+        <code>H(P, Q) = H(P) + D_KL(P ‖ Q)</code>, where <code>H(P)</code> is the true distribution's own
+        entropy (irreducible — it does not depend on the model at all) and
+        <code>D_KL(P ‖ Q) = ∑ P(x) log(P(x)/Q(x))</code> is the Kullback–Leibler divergence, which is
+        always non-negative and zero only when <code>Q = P</code> exactly. Because <code>H(P)</code> is a
+        constant with respect to the model's parameters, minimizing cross-entropy over training is
+        mathematically identical to minimizing <code>D_KL(P ‖ Q)</code> — this is the precise sense in which
+        "cross-entropy training" means "make the model's distribution match the true one."
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="appx-a">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Is the chain-rule factorization of sequence probability an assumption or an identity?
+          <details><summary>Reveal answer</summary>An identity — it follows directly from the
+          definition of conditional probability and holds for any joint distribution, regardless of
+          what mechanism computes each conditional term.</details>
+        </li>
+        <li>What happens to the sampling distribution as temperature τ increases past 1?
+          <details><summary>Reveal answer</summary>The distribution flattens — probability mass
+          spreads more evenly across tokens, increasing output diversity but also the chance of
+          selecting a low-probability, likely lower-quality token.</details>
+        </li>
+        <li>Why does a residual connection's Jacobian (<code>I + J_f</code>) resist vanishing/exploding
+          gradients better than an arbitrary layer's Jacobian?
+          <details><summary>Reveal answer</summary>Because its identity component is always exactly 1
+          regardless of depth, so chaining many residual layers multiplies matrices that stay close to
+          identity, rather than multiplying arbitrary Jacobians whose eigenvalues could compound
+          multiplicatively away from 1 across many layers.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="appx-a"> Mark this appendix reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Notation and derivations as presented in <cite>LLM Architecture Evolution</cite>, pp. 62–64.
+        No external citation required for these standard mathematical identities.</li>
+    </ol>
+  </section>
+
+  <!-- ================= APPENDIX B ================= -->
+  <section id="appx-b" aria-labelledby="appx-b-title">
+    <h2 id="appx-b-title">Appendix B. Annotated Primary-Source Reading Path</h2>
+    <span class="era-badge">Reference</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite> Appendix B bibliography, pp. 64–66, reorganized as a reading path and supplemented with dated external sources.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      A plain alphabetical bibliography tells you what exists but not what order to read it in. This
+      appendix reorders the book's cited works (plus a small number of research-added papers) into a
+      five-stage reading path, each stage annotated with why it matters and what to look for — cite
+      these primary papers, not this monograph, when you need a source for a specific claim.
+    </p>
+
+    <h3 id="appx-b-stage1">Stage 1 — Attention &amp; the Transformer</h3>
+    <ol class="reading-path">
+      <li><strong>Bahdanau, Cho &amp; Bengio, "Neural Machine Translation by Jointly Learning to Align
+        and Translate"</strong> (2014). See PDF Appendix B bibliography, pp. 64–66. Read first: introduces
+        additive attention as a fix for the seq2seq encoder bottleneck (Ch. 7–8) — the direct ancestor
+        of everything that follows in this stage.</li>
+      <li><strong>Vaswani et al., "Attention Is All You Need"</strong> (2017).
+        <a href="https://arxiv.org/abs/1706.03762">arxiv.org/abs/1706.03762</a>. The Transformer itself
+        (Ch. 9) — read for the self-attention formula, multi-head attention, and the original
+        (post-norm) block layout.</li>
+      <li>Foundational LayerNorm work, cited as the normalization Chapter 9's original block used
+        before RMSNorm (Ch. 13). See PDF Appendix B bibliography, pp. 64–66.</li>
+    </ol>
+
+    <h3 id="appx-b-stage2">Stage 2 — Scaling &amp; the modern block</h3>
+    <ol class="reading-path">
+      <li><strong>Radford et al., "Improving Language Understanding by Generative Pre-Training"
+        (GPT-1)</strong> (2018). <a href="https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf">cdn.openai.com — GPT-1 paper</a>. Establishes decoder-only causal
+        pretraining plus fine-tuning (Ch. 10).</li>
+      <li><strong>Devlin et al., "BERT"</strong> (2019). <a href="https://arxiv.org/abs/1810.04805">arxiv.org/abs/1810.04805</a>. Read alongside GPT-1 for the encoder-only, masked-language-modeling
+        contrast (Ch. 11).</li>
+      <li><strong>Kaplan et al., "Scaling Laws for Neural Language Models"</strong> (2020).
+        <a href="https://arxiv.org/abs/2001.08361">arxiv.org/abs/2001.08361</a>. First rigorous power-law
+        treatment of loss vs. parameters/data/compute (Ch. 12).</li>
+      <li><strong>Hoffmann et al., "Training Compute-Optimal Large Language Models" (Chinchilla)</strong>
+        (2022). <a href="https://arxiv.org/abs/2203.15556">arxiv.org/abs/2203.15556</a>. Read directly
+        after Kaplan — revises the compute-optimal parameter/data split (Ch. 12; worked in Appendix D.3
+        below).</li>
+      <li><strong>Zhang &amp; Sennrich, "RMSNorm"</strong> (2019).
+        <a href="https://arxiv.org/abs/1910.07467">arxiv.org/abs/1910.07467</a>; <strong>Shazeer, "GLU
+        Variants Improve Transformer" (SwiGLU)</strong> (2020).
+        <a href="https://arxiv.org/abs/2002.05202">arxiv.org/abs/2002.05202</a>; <strong>Su et al.,
+        "RoFormer" (RoPE)</strong> (2021). <a href="https://arxiv.org/abs/2104.09864">arxiv.org/abs/2104.09864</a>.
+        Read these three together — they are the core "modern block" ingredients of Chapter 13.</li>
+      <li><strong>Shazeer, "Fast Transformer Decoding" (MQA)</strong> (2019).
+        <a href="https://arxiv.org/abs/1911.02150">arxiv.org/abs/1911.02150</a>; <strong>Ainslie et al.,
+        "GQA"</strong> (2023). <a href="https://arxiv.org/abs/2305.13245">arxiv.org/abs/2305.13245</a>.
+        Read after the modern-block trio for the KV-cache-compression spectrum (Ch. 13).</li>
+    </ol>
+
+    <h3 id="appx-b-stage3">Stage 3 — Efficiency: MoE &amp; long context</h3>
+    <ol class="reading-path">
+      <li><strong>Fedus, Zoph &amp; Shazeer, "Switch Transformers"</strong> (2021).
+        <a href="https://arxiv.org/abs/2101.03961">arxiv.org/abs/2101.03961</a>. Start here for MoE —
+        the simplest top-1 routing design (Ch. 14).</li>
+      <li><strong>Mistral AI, "Mixtral of Experts"</strong> (2024).
+        <a href="https://arxiv.org/abs/2401.04088">arxiv.org/abs/2401.04088</a>; <strong>Dai et al.,
+        "DeepSeekMoE"</strong> (2024). <a href="https://arxiv.org/abs/2401.06066">arxiv.org/abs/2401.06066</a>.
+        Read next, in this order, for top-2 routing and then fine-grained shared+routed experts.</li>
+      <li><strong>Dao et al., "FlashAttention"</strong> (2022).
+        <a href="https://arxiv.org/abs/2205.14135">arxiv.org/abs/2205.14135</a>. Read for the online
+        softmax/tiling mechanism (Ch. 15; worked in Appendix D.4 below) before its sequels.</li>
+      <li><strong>Kwon et al., "PagedAttention"</strong> (2023). See PDF Appendix B bibliography, pp.
+        64–66. Read after FlashAttention — a serving-time cache-management technique, distinct in
+        purpose from FlashAttention's training/compute-time tiling.</li>
+      <li><strong>Peng et al., "YaRN"</strong> (2023). <a href="https://arxiv.org/abs/2309.00071">arxiv.org/abs/2309.00071</a>. Read last in this stage for post-hoc context-extension arithmetic
+        (Ch. 15; Appendix D.6 below).</li>
+    </ol>
+
+    <h3 id="appx-b-stage4">Stage 4 — Alternatives &amp; frontiers</h3>
+    <ol class="reading-path">
+      <li><strong>Gu &amp; Dao, "Mamba"</strong> (2023). <a href="https://arxiv.org/abs/2312.00752">arxiv.org/abs/2312.00752</a>. Read for the selective state-space mechanism and parallel scan
+        (Ch. 16); read the underlying S4/HiPPO papers cited within it if you want the full derivation.</li>
+      <li><strong>Liu et al., "Lost in the Middle"</strong> (2023). See PDF Appendix B bibliography, pp.
+        64–66. Read before or alongside Chapter 17 — directly informs where to place retrieved passages
+        in a RAG pipeline.</li>
+      <li><strong>Dosovitskiy et al., "Vision Transformer"</strong> (2020).
+        <a href="https://arxiv.org/abs/2010.11929">arxiv.org/abs/2010.11929</a>; <strong>Radford et al.,
+        "CLIP"</strong> (2021). <a href="https://arxiv.org/abs/2103.00020">arxiv.org/abs/2103.00020</a>.
+        Read together for the standard visual-encoder foundation used across Chapter 18's fusion
+        patterns.</li>
+      <li><strong>Alayrac et al., "Flamingo"</strong> (2022).
+        <a href="https://arxiv.org/abs/2204.14198">arxiv.org/abs/2204.14198</a>; <strong>Liu et al.,
+        "LLaVA"</strong> (2023). <a href="https://arxiv.org/abs/2304.08485">arxiv.org/abs/2304.08485</a>.
+        Read after ViT/CLIP to contrast cross-attention injection with token-concatenation fusion
+        (Ch. 18).</li>
+    </ol>
+
+    <h3 id="appx-b-stage5">Stage 5 — Reasoning &amp; test-time compute</h3>
+    <ol class="reading-path">
+      <li><strong>Wei et al., chain-of-thought prompting.</strong> See PDF Appendix B bibliography, pp.
+        64–66. Read first — establishes the "scratch tape" framing central to Chapter 19.</li>
+      <li><strong>Lightman et al., process reward model training.</strong> See PDF Appendix B
+        bibliography, pp. 64–66. Read next for the PRM-vs-ORM distinction.</li>
+      <li><strong>Snell et al., inference-time compute scaling.</strong> See PDF Appendix B
+        bibliography, pp. 64–66. Read for the test-time scaling framing that unifies best-of-N,
+        self-consistency, and search.</li>
+      <li><strong>OpenAI, "Learning to reason with LLMs" / o1 system card</strong> (2024).
+        <a href="https://openai.com/index/learning-to-reason-with-llms/">openai.com/index/learning-to-reason-with-llms</a>,
+        <a href="https://arxiv.org/abs/2412.16720">arxiv.org/abs/2412.16720</a>; <strong>DeepSeek-AI,
+        "DeepSeek-R1"</strong> (2025). <a href="https://arxiv.org/abs/2501.12948">arxiv.org/abs/2501.12948</a>.
+        Read last, and treat as historical snapshots to re-verify — this stage moves fastest of the five.</li>
+    </ol>
+
+    <aside class="callout" data-type="history">
+      <p class="callout-label">How to use this path</p>
+      <div class="callout-body">
+        <p>
+          Each stage assumes the previous one; within a stage, read in the listed order. This path
+          intentionally does not match publication date order (e.g., Bahdanau et al. 2014 precedes
+          Vaswani et al. 2017 for a reason: attention had to exist before the Transformer could remove
+          recurrence around it) — it matches the order concepts are needed to understand the next
+          paper.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why cite the papers instead of this website or the source PDF</summary>
+      <p>
+        This site and the source monograph are both secondary explanations, written to teach the
+        material rather than to serve as citable evidence of a research claim. If you need to support
+        a specific factual or numerical claim (a reported speedup, a parameter count, a benchmark
+        score), cite the primary paper or technical report itself — check its publication date and
+        version, since many of these figures (especially in Stages 3 and 5) are specific to one
+        release and change across versions.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="appx-b">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>Why does this reading path put Bahdanau et al. (2014) before Vaswani et al. (2017) even
+          though both predate later stages?
+          <details><summary>Reveal answer</summary>Because attention (Bahdanau et al.) had to exist
+          as a concept before the Transformer (Vaswani et al.) could remove recurrence and rely on
+          attention alone — the ordering follows conceptual dependency, not just publication date.</details>
+        </li>
+        <li>Why should you cite Kaplan et al. or Hoffmann et al. directly, rather than citing this
+          website, for a scaling-law claim?
+          <details><summary>Reveal answer</summary>Because this site is a secondary, teaching-oriented
+          explanation of their findings, not the original evidence — citing the primary paper lets a
+          reader verify the exact claim, its conditions, and its date.</details>
+        </li>
+        <li>Which reading-path stage does the appendix warn moves fastest and should be treated most
+          cautiously as a "snapshot"?
+          <details><summary>Reveal answer</summary>Stage 5 — Reasoning &amp; test-time compute,
+          covering o1/o3/DeepSeek-R1-style systems.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="appx-b"> Mark this appendix reviewed</label>
+    </div>
+  </section>
+
+  <!-- ================= APPENDIX D ================= -->
+  <section id="appx-d" aria-labelledby="appx-d-title">
+    <h2 id="appx-d-title">Appendix D. Worked Numerical Examples</h2>
+    <span class="era-badge">Reference</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 67–70. Figures below are rounded, illustrative arithmetic tied to specific stated assumptions — not general benchmarks.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Chapters 12–16 make claims like "compute scales as roughly <code>6ND</code>" or "GQA reduces KV
+      cache size" without necessarily walking through the arithmetic. This appendix works six concrete
+      examples end to end, in a given → find → solution format, so you can reproduce each number
+      yourself and see exactly which assumptions it depends on.
+    </p>
+
+    <aside class="callout" data-type="math">
+      <p class="callout-label">Read this before the examples</p>
+      <div class="callout-body">
+        <p>
+          Every number below depends on the stated assumptions (model size, hardware, precision,
+          sequence length). Changing any assumption changes the result. Treat these as worked
+          <em>methods</em> you can re-run with your own numbers, not as fixed facts about "how much
+          LLMs cost."
+        </p>
+      </div>
+    </aside>
+
+    <h3 id="appx-d-flops">D.1 Training compute (the 6ND rule)</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>A dense Transformer with <em>N</em> = 70 billion parameters, trained on <em>D</em> = 2
+        trillion tokens (illustrative round numbers in the ballpark of a LLaMA-3-70B-class model).</p>
+      <p class="worked-example-label">Find</p>
+      <p>Approximate total training compute <em>C</em>, in floating-point operations (FLOPs).</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        The widely used approximation for dense-Transformer training compute is
+        <code>C ≈ 6ND</code> — the factor of 6 approximates 2 FLOPs per parameter per token for the
+        forward pass and 4 FLOPs per parameter per token for the backward pass (roughly twice the
+        forward cost), summed. Substituting:
+      </p>
+      <p class="equation">C ≈ 6 × (70 × 10⁹) × (2 × 10¹²) = 6 × 1.4 × 10²³ ≈ 8.4 × 10²³ FLOPs</p>
+      <p>
+        This is a first-order approximation: it ignores attention's superlinear cost at very long
+        sequence lengths, embedding/output-layer FLOPs, and implementation-specific overhead — treat it
+        as an order-of-magnitude planning number, not an exact accounting.
+      </p>
+    </div>
+
+    <h3 id="appx-d-kv">D.2 KV-cache bytes</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>A model with 80 layers, model dimension <em>d</em> = 8192, 8 KV heads under GQA (each of
+        dimension 128, so 8 × 128 = 1024 total KV dimension per layer), a context length of 8192
+        tokens, batch size 1, and 16-bit (2-byte) precision for cached values.</p>
+      <p class="worked-example-label">Find</p>
+      <p>Total KV-cache memory for one full-context request.</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        Per token, per layer, the cache stores one key vector and one value vector across all KV heads:
+        <code>2 (K and V) × 1024 (total KV dim) × 2 bytes = 4096 bytes</code>. Across 80 layers:
+        <code>4096 × 80 = 327,680 bytes</code> per token. Across a full 8192-token context:
+      </p>
+      <p class="equation">327,680 bytes/token × 8192 tokens ≈ 2.68 × 10⁹ bytes ≈ 2.68 GB</p>
+      <p>
+        This is for <em>one</em> request at full context; multiply by concurrent-request batch size for
+        total serving memory, and note that GQA's 8 shared KV heads (rather than, say, 64 heads under
+        full MHA) already reduced this number by roughly 8× relative to a same-sized MHA model.
+      </p>
+    </div>
+
+    <h3 id="appx-d-chinchilla">D.3 Chinchilla token allocation</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>A fixed training compute budget <em>C</em>, and the Chinchilla-era fitted rule of thumb of
+        roughly 20 training tokens per parameter as a compute-optimal allocation for the objective and
+        data distribution Hoffmann et al. studied.</p>
+      <p class="worked-example-label">Find</p>
+      <p>An illustrative compute-optimal parameter count <em>N</em> and token count <em>D</em> for
+        <em>C</em> ≈ 8.4 × 10²³ FLOPs (the budget computed in D.1).</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        Using <code>D ≈ 20N</code> and <code>C ≈ 6ND</code>: substitute to get
+        <code>C ≈ 6N(20N) = 120N²</code>, so <code>N ≈ √(C / 120)</code>.
+      </p>
+      <p class="equation">N ≈ √(8.4 × 10²³ / 120) ≈ √(7.0 × 10²¹) ≈ 8.4 × 10¹⁰ ≈ 84 billion parameters</p>
+      <p>
+        Then <code>D ≈ 20 × 84 × 10⁹ ≈ 1.68 × 10¹² ≈ 1.68 trillion tokens</code>. Compare this to D.1's
+        actual 70B/2T configuration: the same compute budget, allocated by the fitted 20-tokens-per-parameter
+        rule, suggests a somewhat larger, somewhat-less-trained model than the illustrative 70B/2T pair —
+        which is exactly the kind of allocation question Chinchilla's fitted law is meant to inform, not
+        dictate exactly, since the "20" is itself a fitted constant specific to Hoffmann et al.'s
+        experimental setup.
+      </p>
+    </div>
+
+    <h3 id="appx-d-flash">D.4 FlashAttention memory traffic</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>A naive attention implementation for one attention head over a sequence of length
+        <em>n</em> = 8192, storing the full score matrix in HBM at 2 bytes per entry (16-bit), versus a
+        tiled FlashAttention implementation processing tiles of size 128 that fit entirely in on-chip
+        SRAM.</p>
+      <p class="worked-example-label">Find</p>
+      <p>The size of the score matrix a naive implementation must write to and read from HBM, to see
+        why avoiding that traffic matters.</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        The full score matrix has <code>n × n = 8192 × 8192 ≈ 6.7 × 10⁷</code> entries; at 2 bytes each,
+        that is:
+      </p>
+      <p class="equation">8192 × 8192 × 2 bytes ≈ 1.34 × 10⁸ bytes ≈ 134 MB</p>
+      <p>
+        — for a <em>single</em> attention head, at a <em>single</em> layer. A naive implementation
+        writes this matrix to slow HBM and reads it back (at least) twice (once for the softmax
+        normalization pass, once for the weighted value sum), while FlashAttention keeps each small
+        128×128 tile (128 × 128 × 2 bytes ≈ 32 KB) entirely within fast on-chip SRAM and never writes the
+        full matrix to HBM at all — the saved traffic scales with the full matrix size shown above,
+        multiplied by however many heads and layers the model has, which is why the saving compounds
+        quickly at real model scale.
+      </p>
+    </div>
+
+    <h3 id="appx-d-moe">D.5 MoE active vs. total parameters</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>An illustrative MoE layer with 256 routed experts of equal size, top-8 token-choice routing,
+        plus 1 always-on shared expert of the same size as each routed expert (loosely modeled on the
+        DeepSeekMoE/DeepSeek-V3 design pattern, with simplified round numbers for clarity, not exact
+        DeepSeek-V3 figures).</p>
+      <p class="worked-example-label">Find</p>
+      <p>The ratio of active experts to total experts for one token, and what that implies about active
+        vs. total feed-forward compute.</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        Total experts available: <code>256 routed + 1 shared = 257</code>. Active experts for any one
+        token: <code>8 routed (top-8) + 1 shared (always on) = 9</code>.
+      </p>
+      <p class="equation">Active fraction ≈ 9 / 257 ≈ 3.5%</p>
+      <p>
+        Because each expert is the same size, feed-forward compute per token is also approximately
+        3.5% of what it would be if every expert ran for every token — this is the concrete arithmetic
+        behind the qualitative claim in Chapter 14 that MoE total capacity can far exceed active
+        per-token compute. (DeepSeek-V3's actual reported 671B-total/37B-active split, cited in Chapter
+        14, uses different, non-uniform expert sizing and counts — use this simplified example to build
+        intuition for the ratio, and Chapter 14's cited report for that model's real figures.)
+      </p>
+    </div>
+
+    <h3 id="appx-d-rope">D.6 RoPE extension arithmetic</h3>
+    <div class="worked-example">
+      <p class="worked-example-label">Given</p>
+      <p>A model trained with RoPE at a maximum context length of 4096 tokens, which you want to run
+        at up to 16,384 tokens using simple linear position interpolation.</p>
+      <p class="worked-example-label">Find</p>
+      <p>The scaling factor applied to position indices before computing RoPE's rotation angles.</p>
+      <p class="worked-example-label">Solution</p>
+      <p>
+        Linear position interpolation rescales every position index by the ratio of trained to target
+        length before it is used in RoPE's rotation formula, so the model only ever "sees" rotation
+        angles within the range it was trained on:
+      </p>
+      <p class="equation">scale = trained_length / target_length = 4096 / 16384 = 0.25</p>
+      <p>
+        A token at raw position 16,000 is treated, for rotation-angle purposes, as if it were at
+        position <code>16,000 × 0.25 = 4,000</code> — within the original 4096-token trained range. This
+        keeps rotation angles in-distribution (avoiding the worse degradation of naive extrapolation),
+        but compresses relative-position resolution by the same 4× factor, which is why NTK-aware
+        scaling and YaRN (Chapter 15) instead apply <em>uneven</em> scaling across RoPE's frequency
+        components rather than one uniform factor, trading a more complex formula for better-preserved
+        short-range precision.
+      </p>
+    </div>
+
+    <details class="going-deeper">
+      <summary>Going deeper: sensitivity of these numbers to precision and hardware</summary>
+      <p>
+        Every byte-counting example above (D.2, D.4) assumes 16-bit (2-byte) storage; switching to
+        8-bit (FP8/INT8) storage roughly halves those figures, and switching to 32-bit roughly doubles
+        them — precision is a first-order lever on memory-traffic and cache-size arithmetic, independent
+        of any architectural choice. Similarly, the compute examples (D.1, D.3) treat FLOPs as a
+        hardware-agnostic accounting unit; actual wall-clock training time additionally depends on a
+        specific accelerator's achievable FLOPs/second, which is a separate, hardware- and
+        kernel-specific number not computed here.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="appx-d">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>In the 6ND rule, why is the constant 6 rather than 2?
+          <details><summary>Reveal answer</summary>Because it approximates 2 FLOPs per parameter per
+          token for the forward pass plus roughly 4 FLOPs per parameter per token for the backward pass
+          (about twice the forward cost), summing to approximately 6.</details>
+        </li>
+        <li>In D.2, what specifically caused the KV cache to be roughly 8× smaller than a same-sized
+          full multi-head-attention model would produce?
+          <details><summary>Reveal answer</summary>GQA sharing 8 KV heads across all query heads,
+          rather than giving every query head (potentially 64 of them) its own KV head as full MHA
+          would.</details>
+        </li>
+        <li>Why does D.6's linear interpolation compress relative-position resolution, and what
+          technique addresses that weakness?
+          <details><summary>Reveal answer</summary>Because it applies the same scaling factor to every
+          position uniformly, shrinking the effective distance between any two positions by that factor;
+          NTK-aware scaling and YaRN address this by applying uneven scaling across RoPE's different
+          frequency components instead of one uniform factor.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="appx-d"> Mark this appendix reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Worked-example structure and assumptions adapted from <cite>LLM Architecture Evolution</cite>,
+        Appendix D, pp. 67–70. Model-card, hardware, and technical-report figures referenced illustratively
+        should be re-verified against the cited primary source and its stated date/version before reuse
+        in any other context; see Chapters 13–15 in Part 4 for the underlying mechanism citations.</li>
+    </ol>
+  </section>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="part-6-synthesis.html">← Part 6: Synthesis</a>
+    <a href="code-appendix.html">Code Appendix →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>Content adapted from <cite>LLM Architecture Evolution.pdf</cite> (78 pp.), Appendices A, B and D.
+    Worked figures are rounded, illustrative arithmetic tied to explicitly stated assumptions.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Reference · Appendices A, B, D · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

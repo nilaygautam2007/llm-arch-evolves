@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Part 5: Frontiers (Ch. 17–19) · LLM Architecture Evolution</title>
+<meta name="description" content="Retrieval-augmented generation, multimodal architectures, and reasoning / test-time compute.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/print.css" media="print">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="index.html">LLM Architecture Evolution</a>
+    <button class="nav-toggle js-only" type="button" data-action="toggle-nav" aria-expanded="false" aria-controls="primary-nav">
+      <span class="sr-only">Toggle navigation</span>
+      <span aria-hidden="true">☰</span>
+    </button>
+    <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="part-1-foundations.html">Part 1</a></li>
+        <li><a href="part-2-sequence-models.html">Part 2</a></li>
+        <li><a href="part-3-scaling.html">Part 3</a></li>
+        <li><a href="part-4-efficiency.html">Part 4</a></li>
+        <li><a href="part-5-frontiers.html" aria-current="page">Part 5</a></li>
+        <li><a href="part-6-synthesis.html">Part 6</a></li>
+        <li><a href="glossary.html">Glossary</a></li>
+        <li><a href="appendices.html">Appendices</a></li>
+        <li><a href="code-appendix.html">Code</a></li>
+        <li><a href="practice.html">Practice</a></li>
+        <li><a href="sitemap.html">Sitemap</a></li>
+      </ul>
+    </nav>
+    <button class="search-trigger js-only" type="button" data-action="open-search">Search <kbd>Ctrl</kbd>+<kbd>K</kbd></button>
+    <div class="progress-indicator" data-progress-indicator aria-live="polite">Part 5 of 6</div>
+  </div>
+</header>
+
+<details class="toc-mobile">
+  <summary>On this page</summary>
+  <ol>
+    <li><a href="#ch-17">Ch. 17 Retrieval-Augmented Generation</a></li>
+    <li><a href="#ch-18">Ch. 18 Multimodal Architectures</a></li>
+    <li><a href="#ch-19">Ch. 19 Reasoning &amp; Test-Time Compute</a></li>
+  </ol>
+</details>
+
+<div class="page-layout">
+<nav class="toc-sidebar" aria-label="On this page">
+  <p class="toc-heading">On this page</p>
+  <ol>
+    <li><a href="#ch-17">Ch. 17 Retrieval-Augmented Generation</a>
+      <ol>
+        <li><a href="#ch-17-memory">Parametric vs. non-parametric memory</a></li>
+        <li><a href="#ch-17-pipeline">The retrieval pipeline</a></li>
+        <li><a href="#ch-17-failures">Failure modes</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-18">Ch. 18 Multimodal Architectures</a>
+      <ol>
+        <li><a href="#ch-18-tokenize">Modality tokenization</a></li>
+        <li><a href="#ch-18-fusion">Fusion patterns</a></li>
+        <li><a href="#ch-18-training">Encoders &amp; staged training</a></li>
+      </ol>
+    </li>
+    <li><a href="#ch-19">Ch. 19 Reasoning &amp; Test-Time Compute</a>
+      <ol>
+        <li><a href="#ch-19-scratch">Chain-of-thought as scratch tape</a></li>
+        <li><a href="#ch-19-verify">Verifiers, PRM &amp; ORM</a></li>
+        <li><a href="#ch-19-scaling">Test-time scaling &amp; search</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+
+<main id="main">
+  <nav class="breadcrumb" aria-label="Breadcrumb">Home / Part 5: Frontiers</nav>
+
+  <h1>Part 5. Frontiers</h1>
+  <p class="part-intro">
+    Parts 1–4 stayed inside a single forward pass through a single model. Part 5 steps outside it:
+    Chapter 17 moves some knowledge out of the weights and into an external, updatable index.
+    Chapter 18 extends the forward pass to inputs that are not text at all. Chapter 19 treats
+    <em>how much computation to spend at inference time</em> as its own controllable axis, separate
+    from model size. None of these chapters describe a new attention primitive at their core — they
+    describe new systems built <em>around</em> a decoder-only Transformer, which is itself the
+    chapter's central lesson.
+  </p>
+
+  <!-- ================= CH 17 ================= -->
+  <section id="ch-17" aria-labelledby="ch-17-title">
+    <h2 id="ch-17-title">Chapter 17. Retrieval-Augmented Generation</h2>
+    <span class="era-badge">2020–2023 · External memory</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 45–47.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      Everything a Transformer "knows" is baked into its weights at training time — updating one
+      fact means retraining or fine-tuning, and the model can never cite where a fact came from.
+      Retrieval-Augmented Generation (RAG) shifts fast-changing, private, or long-tail facts out of
+      the weights (parametric memory) and into a searchable external index (non-parametric memory):
+      retrieve relevant passages, optionally rerank them, and condition generation on the retrieved
+      text. This buys updateability and provenance, but introduces new failure surfaces —
+      retrieval quality, chunk boundaries, and where in the context the retrieved text is placed —
+      that a purely parametric model never had to worry about.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>Parametric memory (model weights) is expensive to update and cannot cite sources;
+        non-parametric memory (an external index) can be updated cheaply and supports citation.</li>
+      <li>The canonical pipeline is query → embed → retrieve (nearest-neighbor search over a vector
+        index) → optionally rerank → condition generation on the retrieved text.</li>
+      <li>Chunking strategy, embedding model choice, and reranking are each independent design
+        decisions with their own failure modes — none of them is "solved" by picking a good LLM.</li>
+      <li>Query rewriting and HyDE (Hypothetical Document Embeddings — generate a plausible answer
+        first, then embed and search with <em>that</em>) improve retrieval when the raw user query is
+        a poor match for how relevant passages are phrased.</li>
+      <li>"Lost in the middle": models can attend less reliably to information placed in the middle
+        of a long context than information near the start or end, which matters directly for where
+        retrieved passages are inserted.</li>
+      <li>RAG does not guarantee factuality or correct citation — the generator can still ignore,
+        misread, or hallucinate around retrieved text.</li>
+    </ul>
+
+    <h3 id="ch-17-memory">Parametric vs. non-parametric memory</h3>
+    <p>
+      A purely parametric model answers every question from patterns compressed into its weights
+      during training. This is fast and requires no extra infrastructure, but it means the model's
+      knowledge is frozen at training time, cannot be selectively corrected, and offers no way to
+      show <em>where</em> an answer came from. Non-parametric memory — a document store plus a
+      vector index — can be updated by adding or removing documents with no retraining, and every
+      retrieved passage is a traceable, inspectable citation. The trade is added latency, added
+      infrastructure, and a new dependency on retrieval quality that a parametric-only model does not
+      have.
+    </p>
+
+    <h3 id="ch-17-pipeline">The retrieval pipeline</h3>
+    <p>
+      A typical RAG pipeline: (1) split source documents into <strong>chunks</strong> small enough to
+      embed meaningfully but large enough to preserve context; (2) embed each chunk with a
+      sentence/passage embedding model and store the vectors in an index; (3) at query time, embed
+      the (possibly rewritten) query and retrieve the nearest chunks by vector similarity; (4)
+      optionally <strong>rerank</strong> the retrieved set with a more expensive, more accurate model
+      that only has to score a short list rather than the whole index; (5) insert the surviving
+      passages into the LLM's context and generate. <strong>Query rewriting</strong> and
+      <strong>HyDE</strong> address the common case where the user's literal query and the phrasing of
+      a relevant passage do not embed close together — HyDE sidesteps this by generating a
+      hypothetical answer first and embedding <em>that</em> for retrieval, on the intuition that an
+      answer-shaped text is more likely to be near real answer passages in embedding space than a
+      question-shaped query is.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-17-1-title">
+      <img src="assets/diagrams/rag-pipeline.svg" alt="Diagram of the retrieval-augmented generation pipeline: a user query is optionally rewritten or expanded into a hypothetical answer (HyDE), embedded, used to search a vector index of chunked and embedded source documents, the top results are optionally reranked, and the surviving passages are inserted into the LLM's context alongside the original query before generation, with citations attached to each passage." loading="lazy">
+      <figcaption id="dg-17-1-title">Figure 17.1. RAG pipeline: query → (rewrite/HyDE) → embed → retrieve → rerank → cited context → generate.</figcaption>
+    </figure>
+
+    <h3 id="ch-17-failures">Failure modes</h3>
+    <figure class="comparison-table-wrap">
+      <figcaption>Table 17.1. RAG failure points and mitigations.</figcaption>
+      <div class="table-scroll">
+        <table class="comparison-table">
+          <thead>
+            <tr><th scope="col">Failure point</th><th scope="col">Symptom</th><th scope="col">Typical mitigation</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Retrieval miss</th><td>Relevant passage never enters the candidate set</td><td>Better embeddings, hybrid lexical+vector search, query rewriting/HyDE</td></tr>
+            <tr><th scope="row">Chunk boundary cuts a fact</th><td>A needed sentence is split across two chunks, neither retrieved alone is sufficient</td><td>Overlapping chunk windows, semantic (not fixed-length) chunking</td></tr>
+            <tr><th scope="row">Reranker miscalibration</th><td>A truly relevant passage is ranked below irrelevant ones</td><td>Evaluate reranker separately from end-to-end answer quality; calibrate threshold</td></tr>
+            <tr><th scope="row">"Lost in the middle" placement</th><td>Model under-uses a retrieved passage placed mid-context even though it was retrieved correctly</td><td>Place highest-confidence passages near the start or end of context; keep retrieved sets short</td></tr>
+            <tr><th scope="row">Stale index</th><td>Retrieved passage was correct when indexed but is now outdated</td><td>Freshness metadata, re-indexing cadence matched to source volatility</td></tr>
+            <tr><th scope="row">Citation mismatch</th><td>Model states a claim not actually supported by its cited passage</td><td>Post-hoc attribution checking; explicit "quote-then-answer" prompting patterns</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+    <aside class="callout" data-type="misconception">
+      <p class="callout-label">Common misconception</p>
+      <div class="callout-body">
+        <p>
+          "We added RAG, so the model won't hallucinate anymore" is false. RAG changes <em>where</em>
+          facts can come from; it does not force the generator to use them correctly. The model can
+          still ignore a correctly retrieved passage, blend it with an incorrect prior belief, or
+          cite a passage that does not actually support the generated claim.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: embeddings and similarity search</summary>
+      <p>
+        Retrieval typically ranks chunks by cosine similarity or dot product between the query
+        embedding and each chunk embedding, found efficiently over large indexes with approximate
+        nearest-neighbor structures (rather than an exhaustive scan) so that latency stays low as the
+        index grows. Reranking then re-scores only the top handful of candidates with a model that
+        jointly encodes the query and each candidate passage (rather than scoring each in isolation,
+        as embedding-only retrieval does), recovering some of the quality that pure vector search
+        leaves on the table in exchange for that extra, more expensive scoring pass.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-17">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>What can non-parametric memory do that parametric memory cannot?
+          <details><summary>Reveal answer</summary>It can be updated cheaply (add/remove documents,
+          no retraining) and it supports citing exactly which passage an answer came from — neither
+          is possible with knowledge baked purely into model weights.</details>
+        </li>
+        <li>Why might HyDE improve retrieval over embedding the raw user query directly?
+          <details><summary>Reveal answer</summary>A user's question and a relevant passage's
+          phrasing often do not embed close together. HyDE generates a plausible, answer-shaped text
+          first and embeds that instead, on the intuition that answer-shaped text sits closer to real
+          answer passages in embedding space than a question does.</details>
+        </li>
+        <li>A passage was retrieved correctly but the model still gave a wrong answer. Name two
+          distinct reasons this could happen that are not "retrieval failed."
+          <details><summary>Reveal answer</summary>The passage may have been placed in a
+          context position the model under-attends to ("lost in the middle"); or the model may have
+          ignored/misread the retrieved text and answered from its own parametric prior instead.</details>
+        </li>
+        <li>Does RAG guarantee factual, well-cited output? Why or why not?
+          <details><summary>Reveal answer</summary>No. RAG only changes what information is
+          available in context; the generator can still ignore correct passages, misattribute claims,
+          or hallucinate around retrieved text — factuality is improved on average, not guaranteed.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-17"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li>Liu et al., <cite>Lost in the Middle: How Language Models Use Long Contexts</cite> (2023). See PDF Appendix B annotated bibliography, pp. 64–66, for full citation.</li>
+      <li>Retrieval-augmented generation pipeline and chunking/reranking practice, as described in <cite>LLM Architecture Evolution</cite>, pp. 45–47, and its Appendix B bibliography.</li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 18 ================= -->
+  <section id="ch-18" aria-labelledby="ch-18-title">
+    <h2 id="ch-18-title">Chapter 18. Multimodal Architectures</h2>
+    <span class="era-badge">2020–2023 · Cross-modal fusion</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 48–50.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      A text-only decoder-only Transformer has no native way to consume an image, an audio clip, or
+      a video. Multimodal architectures solve this by converting non-text signals into something a
+      Transformer forward pass can use — either as tokens inserted directly into the input sequence,
+      or as features injected through cross-attention — and the choice between these patterns trades
+      off training/inference cost against how tightly the modalities can interact.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>Modality tokenization turns a non-text signal into a sequence a Transformer can process —
+        commonly image patches (ViT-style) or discrete codebook tokens (VQ-style).</li>
+      <li>Three fusion patterns dominate: <strong>token/early fusion</strong> (project encoder
+        features into the LLM's embedding space and concatenate them into the input sequence, as in
+        LLaVA), <strong>cross-attention fusion</strong> (inject visual features via dedicated
+        attention layers rather than concatenation, as in Flamingo), and a <strong>projector/adapter</strong>
+        pattern (train a small connector while keeping the encoder and LLM mostly frozen).</li>
+      <li>Pretrained visual encoders (ViT, CLIP, and related families) are reused rather than trained
+        from scratch — the contrastive image-text objective behind CLIP is itself a training-system
+        innovation distinct from the architecture that consumes its output.</li>
+      <li>Staged training (align the connector first, then instruction-tune end-to-end) is the
+        standard recipe rather than a single joint training run from initialization.</li>
+      <li>Video's extra time dimension multiplies token cost per second of content, motivating frame
+        sampling and temporal compression rather than naively tokenizing every frame.</li>
+      <li>Discrete (codebook) tokens reuse the language model's existing generative machinery
+        directly; continuous features preserve more information but require a bespoke injection point
+        (projector or cross-attention) rather than fitting into the existing token vocabulary.</li>
+    </ul>
+
+    <h3 id="ch-18-tokenize">Modality tokenization</h3>
+    <p>
+      Before a Transformer can process an image, it must become a sequence. The Vision Transformer
+      (ViT) approach splits an image into fixed-size patches, linearly projects each patch into a
+      token-sized vector, and treats the resulting sequence of patch tokens exactly like a sequence
+      of word tokens. An alternative, <strong>discrete tokenization</strong>, quantizes visual
+      features against a learned codebook (vector-quantization) so each patch becomes a discrete
+      symbol from a fixed vocabulary — enabling the same categorical, next-token training objective
+      used for text, at the cost of a lossy quantization step that continuous features avoid.
+    </p>
+
+    <h3 id="ch-18-fusion">Fusion patterns</h3>
+    <p>
+      <strong>Token/early fusion</strong> projects visual encoder output into the LLM's embedding
+      space and concatenates it with text tokens, so ordinary self-attention handles cross-modal
+      interaction with no architectural change to the LLM itself — simple to implement, but every
+      visual token adds directly to sequence length and attention cost. <strong>Cross-attention
+      fusion</strong> instead adds dedicated attention layers inside the LLM that let text tokens
+      attend to visual features without those features occupying sequence positions — Flamingo's
+      gated cross-attention is the canonical example — which controls sequence-length growth but
+      requires modifying the LLM's internals rather than treating it as a fixed black box.
+      <strong>Projector/adapter fusion</strong> is an implementation strategy more than a third
+      geometry: a small trainable network (often just one or two layers) maps encoder features into
+      whichever fusion point (token-concatenation or cross-attention) the architecture uses, letting
+      most of the encoder and LLM stay frozen during the cheapest training stage.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-18-1-title">
+      <img src="assets/diagrams/multimodal-fusion.svg" alt="Diagram comparing three multimodal fusion patterns: token/early fusion where projected image patch tokens are concatenated directly into the LLM's input sequence; cross-attention fusion where a frozen vision encoder's features are injected into dedicated cross-attention layers inside the LLM without adding sequence positions; and a projector/adapter pattern where a small trainable connector maps frozen encoder output into either fusion point." loading="lazy">
+      <figcaption id="dg-18-1-title">Figure 18.1. Multimodal fusion patterns: token/early fusion, cross-attention fusion, and the projector/adapter connector.</figcaption>
+    </figure>
+
+    <div class="innovation-split">
+      <div class="innovation-block" data-kind="architecture">
+        <p class="innovation-label">Architecture innovation</p>
+        <ul>
+          <li>ViT-style patch tokenization and CLIP-family encoder design.</li>
+          <li>The projector layer and Flamingo-style gated cross-attention injection point.</li>
+        </ul>
+      </div>
+      <div class="innovation-block" data-kind="training-system">
+        <p class="innovation-label">Training / systems innovation</p>
+        <ul>
+          <li>Contrastive image-text pretraining objective (CLIP) used to obtain a reusable encoder.</li>
+          <li>Staged training recipe: align the connector first (encoder + LLM frozen), then
+            instruction-tune, then optionally unfreeze more of the stack.</li>
+          <li>Frame sampling / temporal compression schemes for video token-cost control.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="ch-18-training">Encoders &amp; staged training</h3>
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book</p>
+      <div class="callout-body">
+        <p>
+          The Vision Transformer treats images as patch-token sequences for a plain Transformer
+          encoder.<sup><a href="#ch-18-src-1">[1]</a></sup> CLIP learns aligned image and text
+          representations with a contrastive objective, giving multimodal systems a reusable,
+          off-the-shelf visual encoder rather than requiring one trained from scratch per
+          system.<sup><a href="#ch-18-src-2">[2]</a></sup> Flamingo demonstrated gated cross-attention
+          injection of visual features into a frozen language model,<sup><a href="#ch-18-src-3">[3]</a></sup>
+          while LLaVA demonstrated the simpler token-concatenation/projector pattern with visual
+          instruction tuning.<sup><a href="#ch-18-src-4">[4]</a></sup> Cite the specific
+          encoder/LLM system in any generalization you make about multimodal training — do not treat
+          these four papers as an uncited aggregate claim about "how multimodal models work."
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why video multiplies token cost</summary>
+      <p>
+        A single image might tokenize into a few hundred patch tokens. A video is, naively, a
+        sequence of images at some frame rate — tokenizing every frame independently multiplies the
+        per-image token cost by the number of frames, which for even a short clip at a normal frame
+        rate can dwarf the text token budget entirely. Practical systems instead subsample frames
+        (processing far fewer than the source frame rate), pool or compress tokens temporally across
+        nearby frames, or use dedicated video encoders that model short temporal windows jointly
+        rather than frame-by-frame, trading temporal fidelity for a token budget the surrounding LLM
+        can actually afford to attend over.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-18">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>What is the core difference between token/early fusion and cross-attention fusion?
+          <details><summary>Reveal answer</summary>Token/early fusion concatenates projected visual
+          features directly into the input sequence, so they occupy sequence positions and are
+          handled by ordinary self-attention; cross-attention fusion injects visual features through
+          dedicated attention layers inside the LLM without adding sequence positions, requiring
+          internal changes to the LLM instead.</details>
+        </li>
+        <li>Why do most multimodal systems reuse a pretrained encoder like ViT or CLIP rather than
+          training a visual encoder from scratch alongside the LLM?
+          <details><summary>Reveal answer</summary>Pretrained encoders (especially CLIP's
+          contrastively-trained, image-text-aligned representations) are expensive to train and
+          already capture broadly useful visual structure; reusing one is cheaper and typically more
+          effective than training a bespoke encoder jointly with limited multimodal data.</details>
+        </li>
+        <li>What problem does frame sampling/temporal compression solve for video inputs?
+          <details><summary>Reveal answer</summary>Tokenizing every frame independently multiplies
+          per-image token cost by frame count, quickly exceeding a practical attention budget; sampling
+          and temporal compression reduce the token count per second of video to something the LLM can
+          afford to process.</details>
+        </li>
+        <li>Is CLIP's contrastive pretraining an architecture innovation or a training-system
+          innovation, and why does that distinction matter?
+          <details><summary>Reveal answer</summary>It is primarily a training-system innovation — a
+          new pretraining objective — rather than a new forward-pass architecture; separating this
+          from architecture innovations (like the projector or cross-attention injection point)
+          avoids conflating "how the model is trained" with "how the model computes its output."</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-18"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li id="ch-18-src-1">Dosovitskiy et al., <cite>An Image is Worth 16x16 Words (Vision Transformer)</cite> (2020). <a href="https://arxiv.org/abs/2010.11929">arxiv.org/abs/2010.11929</a></li>
+      <li id="ch-18-src-2">Radford et al., <cite>Learning Transferable Visual Models From Natural Language Supervision (CLIP)</cite> (2021). <a href="https://arxiv.org/abs/2103.00020">arxiv.org/abs/2103.00020</a></li>
+      <li id="ch-18-src-3">Alayrac et al., <cite>Flamingo: a Visual Language Model for Few-Shot Learning</cite> (2022). <a href="https://arxiv.org/abs/2204.14198">arxiv.org/abs/2204.14198</a></li>
+      <li id="ch-18-src-4">Liu et al., <cite>Visual Instruction Tuning (LLaVA)</cite> (2023). <a href="https://arxiv.org/abs/2304.08485">arxiv.org/abs/2304.08485</a></li>
+    </ol>
+  </section>
+
+  <!-- ================= CH 19 ================= -->
+  <section id="ch-19" aria-labelledby="ch-19-title">
+    <h2 id="ch-19-title">Chapter 19. Reasoning &amp; Test-Time Compute</h2>
+    <span class="era-badge">2022–2025 · Inference-time scaling</span>
+    <p class="page-ref">Source: <cite>LLM Architecture Evolution</cite>, pp. 51–54.</p>
+
+    <h3 class="section-label">Why this mattered</h3>
+    <p>
+      A single forward pass allocates a fixed, small amount of computation per output token, which
+      limits how much "thinking" a model can do on a genuinely hard problem in one shot.
+      Chain-of-thought showed that letting a model spend extra generated tokens as a scratchpad
+      recovers accuracy on multi-step problems; o-series- and DeepSeek-R1-style systems go further,
+      turning <em>how much to think</em> into a controllable, trainable axis via verifier feedback and
+      search. This is best understood as a change to the training and inference loop <em>around</em>
+      a decoder-only Transformer, not a change to the Transformer block's forward-pass math itself.
+    </p>
+
+    <h3 class="section-label">Key takeaways</h3>
+    <ul class="key-takeaways">
+      <li>Chain-of-thought reframes reasoning as generated intermediate tokens the model can
+        condition on — a "scratch tape" that works around the fixed per-token compute of a single
+        forward pass.</li>
+      <li>A Process Reward Model (PRM) scores each intermediate reasoning step; an Outcome Reward
+        Model (ORM) scores only the final answer — they supervise search and training differently and
+        are not interchangeable.</li>
+      <li>Test-time scaling trades inference compute for accuracy: best-of-<em>N</em> sampling,
+        self-consistency (majority vote across sampled reasoning chains), and verifier-guided
+        tree/beam search are all ways to spend more compute at inference for a better answer.</li>
+      <li>Reinforcement learning against a verifier/reward signal can train a model to generate
+        longer, more self-correcting reasoning traces, as reported for o1/DeepSeek-R1-style systems.</li>
+      <li>This capability is largely a <strong>system</strong> built around an largely unchanged
+        Transformer forward pass — separate "architecture innovation" from "training/inference-system
+        innovation" explicitly when discussing this chapter.</li>
+      <li>Benchmark scores and specific product claims in this area move especially fast; treat them
+        as historical snapshots to re-verify, not settled state-of-the-art facts.</li>
+    </ul>
+
+    <h3 id="ch-19-scratch">Chain-of-thought as scratch tape</h3>
+    <p>
+      A decoder-only model predicts each output token from a fixed amount of computation given
+      everything generated so far — it cannot "spend longer" on one particular token. Chain-of-thought
+      prompting works around this limit not by changing the per-token computation, but by having the
+      model generate intermediate reasoning tokens before its final answer; each of those intermediate
+      tokens becomes part of the context for predicting the next one, so the <em>sequence</em> of
+      generated tokens carries forward partial results the single forward pass alone could not hold.
+      In this framing, the visible chain of text functions like a scratchpad — external, sequential
+      working memory built from the model's own outputs — rather than evidence of a different internal
+      computation.
+    </p>
+
+    <h3 id="ch-19-verify">Verifiers, PRM &amp; ORM</h3>
+    <p>
+      An Outcome Reward Model (ORM) is trained to judge whether a <em>final</em> answer is correct,
+      given the full reasoning trace that produced it — cheap to supervise (only the end result needs
+      a label) but gives no signal about which intermediate step, if any, went wrong. A Process Reward
+      Model (PRM) is trained to score the correctness of <em>each individual reasoning step</em>,
+      giving much more granular training and search signal, at the cost of needing step-level
+      supervision (human- or model-generated), which is more expensive to collect than final-answer
+      labels alone.
+    </p>
+
+    <figure class="diagram" role="group" aria-labelledby="dg-19-1-title">
+      <img src="assets/diagrams/reasoning-verifier-loop.svg" alt="Diagram of a base language model generating multiple candidate reasoning traces for a problem, a verifier or reward model (process-level or outcome-level) scoring the candidate traces or their individual steps, and a selection or search step choosing, refining, or voting across the candidates to produce a final answer, with an optional feedback arrow back into reinforcement-learning training of the base model." loading="lazy">
+      <figcaption id="dg-19-1-title">Figure 19.1. Reasoning/test-time-compute loop: base model → candidate traces → verifier (PRM/ORM) → select/search/vote → answer, with an optional RL feedback path.</figcaption>
+    </figure>
+
+    <h3 id="ch-19-scaling">Test-time scaling &amp; search</h3>
+    <p>
+      Rather than generating one answer, a system can sample <em>N</em> candidate reasoning chains and
+      either take a simple majority vote across their final answers (<strong>self-consistency</strong>)
+      or use a reward model to pick the single best one (<strong>best-of-N</strong>). More elaborate
+      systems perform step-by-step tree or beam search, using a PRM to prune weak partial traces
+      before they are extended further, concentrating compute on the most promising partial reasoning
+      paths rather than sampling complete chains independently. All of these spend additional inference
+      compute — beyond generating one answer with one forward pass each token — in exchange for higher
+      accuracy, making "how much compute to spend per query at inference" a real, tunable design
+      dimension distinct from model size.
+    </p>
+
+    <div class="innovation-split">
+      <div class="innovation-block" data-kind="architecture">
+        <p class="innovation-label">Architecture innovation</p>
+        <ul>
+          <li>Minimal to none — the underlying decoder-only Transformer block is largely unchanged
+            from Chapters 9–13.</li>
+        </ul>
+      </div>
+      <div class="innovation-block" data-kind="training-system">
+        <p class="innovation-label">Training / systems innovation</p>
+        <ul>
+          <li>Chain-of-thought data curation and prompting strategy.</li>
+          <li>PRM/ORM training and use as a search/ranking signal.</li>
+          <li>Reinforcement learning against verifier/reward feedback to elicit longer, self-correcting
+            traces.</li>
+          <li>Inference-time sampling budget, search strategy (best-of-N, self-consistency, beam/tree
+            search).</li>
+        </ul>
+      </div>
+    </div>
+
+    <aside class="callout" data-type="research">
+      <p class="callout-label">Beyond the book — fast-aging, verify before citing as current</p>
+      <div class="callout-body">
+        <p>
+          OpenAI's o1 system card and "Learning to reason with LLMs" write-up, the o3/o4-mini
+          announcement, and DeepSeek-R1's technical report are the primary sources for o-series- and
+          R1-style reasoning-and-verifier training at the time of writing.<sup><a href="#ch-19-src-1">[1]</a></sup>
+          Chain-of-thought prompting, PRM training, and inference-time compute scaling are documented
+          in Wei et al., Lightman et al., and Snell et al. respectively — see the PDF's Appendix B
+          bibliography for full citations. Treat every specific benchmark number, product name, and
+          "current best" claim in this space as a historical snapshot that should be re-verified
+          before repeating it as current fact.
+        </p>
+      </div>
+    </aside>
+
+    <details class="going-deeper">
+      <summary>Going deeper: why this is framed as a system, not a new attention primitive</summary>
+      <p>
+        Every mechanism in this chapter — generating a longer trace, scoring it with a separate PRM
+        or ORM network, sampling multiple candidates, running a search over partial traces, and
+        fine-tuning with RL against that verifier signal — operates on top of an ordinary decoder-only
+        Transformer forward pass. None of it changes how a single attention layer computes
+        <code>softmax(QKᵀ/√dₖ)V</code>, and the verifier is typically its own separate model rather than
+        a modification of the base model's internals. This is why the source frames current reasoning
+        capability primarily as a training-and-inference <em>system</em> wrapped around an otherwise
+        familiar architecture, rather than as Chapter 20's kind of architecture-family comparison.
+      </p>
+    </details>
+
+    <div class="checkpoint" data-chapter="ch-19">
+      <h3>Checkpoint</h3>
+      <ol class="checkpoint-questions">
+        <li>In what precise sense is chain-of-thought a workaround for a Transformer's fixed
+          per-token compute, rather than a change to that compute?
+          <details><summary>Reveal answer</summary>Each forward pass still spends the same fixed
+          computation per generated token; chain-of-thought instead lets the model generate additional
+          intermediate tokens that become context for later tokens, effectively spreading a hard
+          problem's computation across multiple forward passes rather than deepening any single one.</details>
+        </li>
+        <li>What is the key difference in what a PRM and an ORM are trained to score, and what does
+          that difference cost in supervision?
+          <details><summary>Reveal answer</summary>An ORM scores only the final answer (cheap to
+          supervise — just a correctness label on the outcome); a PRM scores each intermediate
+          reasoning step (more useful signal for search and training, but requires more expensive
+          step-level supervision).</details>
+        </li>
+        <li>Name two distinct ways a system can spend more inference-time compute to improve accuracy
+          on a hard problem.
+          <details><summary>Reveal answer</summary>Any two of: sampling multiple chains and taking a
+          majority vote (self-consistency); sampling multiple chains and picking the reward-model-best
+          one (best-of-N); running a verifier-guided tree/beam search over partial reasoning steps.</details>
+        </li>
+        <li>Why does the chapter treat current reasoning-system benchmark claims with extra caution
+          compared to, say, the Transformer's core attention formula?
+          <details><summary>Reveal answer</summary>Because reasoning/test-time-compute systems,
+          their benchmarks, and the specific products implementing them are changing very rapidly;
+          the underlying mechanism descriptions are stable, but which system is "best" or exactly what
+          score it achieved is a fast-moving, easily outdated claim that should be re-verified before
+          being repeated as current fact.</details>
+        </li>
+      </ol>
+      <label class="mark-reviewed"><input type="checkbox" data-progress-key="ch-19"> Mark this chapter reviewed</label>
+    </div>
+
+    <p class="sources-heading">Sources</p>
+    <ol class="sources-list">
+      <li id="ch-19-src-1">OpenAI, <cite>OpenAI o1 System Card</cite> (2024). <a href="https://arxiv.org/abs/2412.16720">arxiv.org/abs/2412.16720</a>; OpenAI, <cite>Learning to reason with LLMs</cite> (2024). <a href="https://openai.com/index/learning-to-reason-with-llms/">openai.com/index/learning-to-reason-with-llms</a>; OpenAI, <cite>Introducing o3 and o4-mini</cite> (2025). <a href="https://openai.com/index/introducing-o3-and-o4-mini/">openai.com/index/introducing-o3-and-o4-mini</a>; DeepSeek-AI, <cite>DeepSeek-R1</cite> (2025). <a href="https://arxiv.org/abs/2501.12948">arxiv.org/abs/2501.12948</a></li>
+      <li>Wei et al., chain-of-thought prompting; Lightman et al., process reward model training; Snell et al., inference-time compute scaling. See PDF Appendix B annotated bibliography, pp. 64–66, for full citations.</li>
+    </ol>
+  </section>
+
+  <nav class="part-pager" aria-label="Part navigation">
+    <a href="part-4-efficiency.html">← Part 4: Efficiency &amp; Scale</a>
+    <a href="part-6-synthesis.html">Part 6: Synthesis →</a>
+  </nav>
+</main>
+</div>
+
+<footer class="site-footer">
+  <p>Content adapted from <cite>LLM Architecture Evolution.pdf</cite> (78 pp.), supplemented with
+    dated external sources where marked "Beyond the book." Mechanism descriptions are treated as
+    stable; current-model and benchmark comparisons are explicitly caveated as fast-aging.</p>
+  <button class="print-chapter js-only" type="button" data-action="print-page">Print this page</button>
+  <details class="keyboard-help">
+    <summary>Keyboard shortcuts</summary>
+    <ul>
+      <li><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd> — open search</li>
+      <li><kbd>Tab</kbd> — move between interactive elements; every control has a visible focus ring</li>
+    </ul>
+  </details>
+  <p class="last-updated">Part 5 of 6 · Chapters 17–19 · <a href="sitemap.html">Full sitemap</a></p>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/storage.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

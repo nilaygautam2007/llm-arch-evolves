@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 640" role="img" aria-labelledby="dg-kv-cache-paged-title dg-kv-cache-paged-desc">
+  <title id="dg-kv-cache-paged-title">Growing KV cache during decoding, and PagedAttention memory management</title>
+  <desc id="dg-kv-cache-paged-desc">During autoregressive decoding, each new token produces one key and value vector per attention head, which must be kept for every future step so that new queries can attend back over the whole generated-so-far sequence; the cache therefore grows linearly with sequence length even though computing each new token is not itself quadratic. This is a serving-time memory problem, distinct from the quadratic attention score computation seen during training on a fixed context. PagedAttention addresses the memory-management side by splitting the logical KV sequence into fixed-size blocks and mapping those logical blocks to non-contiguous physical memory pages through a per-sequence page table, the same idea operating systems use for virtual memory; this allows near-zero-waste allocation and lets multiple sequences share identical prefix blocks instead of duplicating them.</desc>
+  <defs>
+    <marker id="dg-kv-cache-paged-arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1f5fa8"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-teal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#0f7d82"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-purple" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#7b3fb0"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-gray" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#565d6b"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-danger" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#b3261e"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-warn" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#9a6400"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-success" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1b7a43"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-ink" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#1a1d23"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-open" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1,1 L10,6 L1,11" fill="none" stroke="#565d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="dg-kv-cache-paged-arrow-diamond" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M5,0 L10,5 L5,10 L0,5 Z" fill="#7b3fb0"/></marker>
+    <pattern id="dg-kv-cache-paged-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#d9dce1" stroke-width="2"/></pattern>
+    <pattern id="dg-kv-cache-paged-hatch-danger" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fbe9e7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#b3261e" stroke-width="1.4"/></pattern>
+  </defs>
+  <rect x="0" y="0" width="1080" height="640" fill="#ffffff"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+  <text x="540" y="30" font-size="19" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">KV Cache Growth and PagedAttention</text>
+  <text x="540" y="51" font-size="12.3" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">Ch. 15 — linear per-step memory growth (serving) vs. quadratic score computation (training)</text>
+  <text x="270" y="90" font-size="13.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1f5fa8">A. KV cache grows one token per decode step</text>
+  <text x="63" y="104" font-size="9.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">step 1</text>
+  <rect x="40" y="110" width="46" height="36" rx="4" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.4"/>
+  <text x="63" y="132" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K1,V1</text>
+  <text x="117" y="104" font-size="9.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">step 2</text>
+  <rect x="94" y="110" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="117" y="132" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K1,V1</text>
+  <rect x="94" y="154" width="46" height="36" rx="4" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.4"/>
+  <text x="117" y="176" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K2,V2</text>
+  <text x="171" y="104" font-size="9.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">step 3</text>
+  <rect x="148" y="110" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="171" y="132" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K1,V1</text>
+  <rect x="148" y="154" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="171" y="176" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K2,V2</text>
+  <rect x="148" y="198" width="46" height="36" rx="4" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.4"/>
+  <text x="171" y="220" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K3,V3</text>
+  <text x="225" y="104" font-size="9.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">step 4</text>
+  <rect x="202" y="110" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="225" y="132" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K1,V1</text>
+  <rect x="202" y="154" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="225" y="176" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K2,V2</text>
+  <rect x="202" y="198" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="225" y="220" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K3,V3</text>
+  <rect x="202" y="242" width="46" height="36" rx="4" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.4"/>
+  <text x="225" y="264" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K4,V4</text>
+  <text x="279" y="104" font-size="9.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">step 5</text>
+  <rect x="256" y="110" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="279" y="132" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K1,V1</text>
+  <rect x="256" y="154" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="279" y="176" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K2,V2</text>
+  <rect x="256" y="198" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="279" y="220" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K3,V3</text>
+  <rect x="256" y="242" width="46" height="36" rx="4" fill="#eaf1fa" stroke="#1f5fa8" stroke-width="1.4"/>
+  <text x="279" y="264" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K4,V4</text>
+  <rect x="256" y="286" width="46" height="36" rx="4" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.4"/>
+  <text x="279" y="308" font-size="8.6" text-anchor="middle" font-weight="normal" font-style="normal" fill="#1a1d23">K5,V5</text>
+  <text x="370" y="198" font-size="10.5" text-anchor="middle" font-weight="normal" font-style="normal" fill="#565d6b">cache size</text>
+  <path d="M320,320 L320,100" fill="none" stroke="#565d6b" stroke-width="1.6"  marker-end="url(#dg-kv-cache-paged-arrow-gray)" stroke-linecap="round"/>
+  <text x="36" y="344" font-size="10.3" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">→ memory per sequence grows linearly with tokens generated so far (new pair per step, highlighted teal)</text>
+  <text x="540" y="290" font-size="13.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#7b3fb0">B. PagedAttention: logical blocks → page table → non-contiguous physical pages</text>
+  <rect x="60" y="320" width="110" height="46" rx="8" fill="#f2e9f8" stroke="#7b3fb0" stroke-width="1.8"/><text x="115" y="336.64" font-size="12" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">blk 0</text><text x="115" y="351.64" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">4 tokens/block</text>
+  <rect x="190" y="320" width="110" height="46" rx="8" fill="#f2e9f8" stroke="#7b3fb0" stroke-width="1.8"/><text x="245" y="336.64" font-size="12" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">blk 1</text><text x="245" y="351.64" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">4 tokens/block</text>
+  <rect x="320" y="320" width="110" height="46" rx="8" fill="#f2e9f8" stroke="#7b3fb0" stroke-width="1.8"/><text x="375" y="336.64" font-size="12" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">blk 2</text><text x="375" y="351.64" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">4 tokens/block</text>
+  <rect x="450" y="320" width="110" height="46" rx="8" fill="#f2e9f8" stroke="#7b3fb0" stroke-width="1.8"/><text x="505" y="336.64" font-size="12" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">blk 3</text><text x="505" y="351.64" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">4 tokens/block</text>
+  <text x="50" y="312" font-size="10.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">logical KV sequence (per request)</text>
+  <rect x="60" y="410" width="550" height="46" rx="8" fill="#f2f3f5" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="335" y="438" font-size="11.5" text-anchor="middle" font-weight="600" font-style="normal" fill="#1a1d23">page table (per-sequence): logical block → physical page id</text>
+  <path d="M115,366 L115,410" fill="none" stroke="#7b3fb0" stroke-width="1.6"  marker-end="url(#dg-kv-cache-paged-arrow-purple)" stroke-linecap="round"/>
+  <path d="M245,366 L245,410" fill="none" stroke="#7b3fb0" stroke-width="1.6"  marker-end="url(#dg-kv-cache-paged-arrow-purple)" stroke-linecap="round"/>
+  <path d="M375,366 L375,410" fill="none" stroke="#7b3fb0" stroke-width="1.6"  marker-end="url(#dg-kv-cache-paged-arrow-purple)" stroke-linecap="round"/>
+  <path d="M505,366 L505,410" fill="none" stroke="#7b3fb0" stroke-width="1.6"  marker-end="url(#dg-kv-cache-paged-arrow-purple)" stroke-linecap="round"/>
+  <rect x="60" y="500" width="130" height="50" rx="8" fill="#d7e6f7" stroke="#1f5fa8" stroke-width="1.8"/><text x="125" y="518.78" font-size="11.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">physical page 1</text><text x="125" y="533.28" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">dedicated</text>
+  <rect x="230" y="500" width="130" height="50" rx="8" fill="#d7e6f7" stroke="#1f5fa8" stroke-width="1.8"/><text x="295" y="518.78" font-size="11.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">physical page 2</text><text x="295" y="533.28" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">dedicated</text>
+  <rect x="400" y="500" width="130" height="50" rx="8" fill="#c9e9e9" stroke="#0f7d82" stroke-width="1.8"/><text x="465" y="518.78" font-size="11.5" text-anchor="middle" font-weight="700" font-style="normal" fill="#1a1d23">physical page 5</text><text x="465" y="533.28" font-size="9.5" text-anchor="middle" font-weight="400" font-style="normal" fill="#565d6b">shared prefix</text>
+  <path d="M115,456 C115,470 295,470 295,500" fill="none" stroke="#7b3fb0" stroke-width="1.5" stroke-dasharray="1.6,3.4" marker-end="url(#dg-kv-cache-paged-arrow-diamond)" stroke-linecap="round"/>
+  <path d="M245,456 C245,470 465,470 465,500" fill="none" stroke="#7b3fb0" stroke-width="1.5" stroke-dasharray="1.6,3.4" marker-end="url(#dg-kv-cache-paged-arrow-diamond)" stroke-linecap="round"/>
+  <path d="M375,456 C375,470 125,470 125,500" fill="none" stroke="#7b3fb0" stroke-width="1.5" stroke-dasharray="1.6,3.4" marker-end="url(#dg-kv-cache-paged-arrow-diamond)" stroke-linecap="round"/>
+  <path d="M505,456 C505,470 465,470 465,500" fill="none" stroke="#7b3fb0" stroke-width="1.5" stroke-dasharray="1.6,3.4" marker-end="url(#dg-kv-cache-paged-arrow-diamond)" stroke-linecap="round"/>
+  <text x="60" y="576" font-size="10.6" text-anchor="start" font-weight="400" font-style="normal" fill="#565d6b">Non-contiguous allocation avoids reserving worst-case-length memory upfront; identical prefix blocks (e.g. a shared system prompt) map to the same physical page.</text>
+  <rect x="650" y="20" width="400" height="60" rx="8" fill="#ffffff" stroke="#9aa2b1" stroke-width="1.3"/>
+<text x="664" y="40" font-size="12.5" text-anchor="start" font-weight="700" font-style="normal" fill="#1a1d23">Legend</text>
+<rect x="664" y="48" width="26" height="14" rx="3" fill="#e0f2f2" stroke="#0f7d82" stroke-width="1.6"/>
+<text x="706" y="60" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">newest cache entry / shared physical page</text>
+<path d="M664,76 L698,76" fill="none" stroke="#7b3fb0" stroke-width="2.0" stroke-dasharray="1.6,3.4" marker-end="url(#dg-kv-cache-paged-arrow-diamond)" stroke-linecap="round"/>
+<text x="706" y="80" font-size="11.5" text-anchor="start" font-weight="normal" font-style="normal" fill="#565d6b">page-table lookup (logical → physical)</text>
+  </g>
+</svg>
