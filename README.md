@@ -15,19 +15,7 @@ compute.
 - Browser-local progress tracking
 - Responsive, printable, dependency-free HTML
 
-## Use locally
 
-Open `index.html` in a modern browser. No build command or local server is
-required.
-
-## Publish with GitHub Pages
-
-In the repository, open **Settings → Pages**, choose **Deploy from a branch**,
-then select `main` and `/ (root)`.
-
-The site will be available at:
-
-`https://nilaygautam2007.github.io/llm-arch-evolves/`
 
 ## License
 
